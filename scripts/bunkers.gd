@@ -1,12 +1,17 @@
-# Childhood prologue — the Enclave bunker, walked like childhood town.
-# A side-view platform corridor, not a top-down overworld. NPCs grown
-# childhood towns: friend, parents, and a guard who casts the kid out.
+# Childhood prologue — the Enclave bunker, walked like a childhood town.
+# Side-view platform corridor built from loom-generated seamless textures,
+# pxl-generated sprites (kid + childhood cast + torch), chirp-generated audio.
 extends Node2D
 
 const WorldMap = preload("res://scripts/world_map.gd")
 const Kid = preload("res://scripts/kid.gd")
 const KidState = preload("res://scripts/kid_state.gd")
 const NPC = preload("res://scripts/npc.gd")
+const WALL_TEX = preload("res://assets/textures/bunker_wall/bunker_wall_albedo.png")
+const FLOOR_TEX = preload("res://assets/textures/bunker_floor/bunker_floor_albedo.png")
+const PILLAR_TEX = preload("res://assets/textures/bunker_pillar/bunker_pillar_albedo.png")
+const FLAME_TEX = preload("res://assets/sprites/anims/flame.png")
+const BRACKET_TEX = preload("res://assets/sprites/sprites/torch_bracket.png")
 
 const TILE := WorldMap.TILE
 const W := 40
@@ -32,13 +37,50 @@ var _finished := false
 var _moving := false
 var _walk_phase := 0.0
 var _cam := Vector2(0, 0)
+var _step_pitch := 0.0
 
 var _npcs: Array[Dictionary] = []
 var _talk_index := -1
 var _talk_line := 0
 var _done_npcs: Array = []
 
+static var _flame_frames: Array = []
+static var _filters_set := false
+
+static var _tile_tex: Dictionary = {}
+
+func _ensure_textures() -> void:
+	if _filters_set:
+		return
+	_filters_set = true
+
+	# pre-downscale loom albedo textures to tile size once (crisp + cheap)
+	for tex in [WALL_TEX, FLOOR_TEX, PILLAR_TEX]:
+		if tex == null:
+			continue
+		var img: Image = tex.get_image()
+		if img == null:
+			continue
+		var iw: int = img.get_width()
+		var ih: int = img.get_height()
+		var tiled := Image.create(TILE, TILE, false, Image.FORMAT_RGBA8)
+		for y in TILE:
+			for x in TILE:
+				var sx := int((float(x) + 0.5) * iw / TILE) % iw
+				var sy := int((float(y) + 0.5) * ih / TILE) % ih
+				tiled.set_pixel(x, y, img.get_pixel(sx, sy))
+		_tile_tex[tex.resource_path] = ImageTexture.create_from_image(tiled)
+
+	if _flame_frames.is_empty():
+		var img: Image = FLAME_TEX.get_image()
+		if img != null:
+			for i in 6:
+				var region := img.get_region(Rect2i(i * 9, 0, 9, 12))
+				var t := ImageTexture.create_from_image(region)
+				_flame_frames.append(t)
+
 func _ready() -> void:
+	_ensure_textures()
 	map = _make_map()
 	kid.x = 3 * TILE
 	kid.y = (H - 1) * TILE - 13
@@ -47,6 +89,7 @@ func _ready() -> void:
 	kid.face = 1
 	fade = 1.0
 	_cam = _target_cam()
+	_step_pitch = 0.0
 	_npcs = [
 		{"x": 7 * TILE, "kind": "kid", "name": "Perry", "lines": [
 			"Perry: You still got the locket?",
@@ -70,6 +113,11 @@ func _ready() -> void:
 			"Guard: Leave the way you came. Leave now.",
 		]},
 	]
+	Audio.start_loop("ambience")
+	Audio.start_loop("torch_crackle")
+
+func _exit_tree() -> void:
+	Audio.stop_loop("torch_crackle")
 
 func debug_advance_dialogue() -> void:
 	_advance_dialogue()
@@ -100,7 +148,6 @@ func _make_map() -> Array:
 	for y in H:
 		m[y][0] = "#"
 		m[y][W - 1] = "#"
-	# decorative pillars
 	m[5][8] = "#"; m[6][8] = "#"
 	m[4][13] = "#"; m[5][13] = "#"
 	return m
@@ -143,16 +190,16 @@ func _physics_process(delta: float) -> void:
 			_talk_index = near
 			_talk_line = 0
 			kid.face = 1 if float(_npcs[near]["x"]) > kid.x + kid.w / 2.0 else -1
+			Audio.play_sfx("dialogue_blip", 0.6)
 	else:
-		_talk_index = -1
+		if _talk_index != -1:
+			_talk_index = -1
 		_talk_line = 0
 	var talking := _talk_index >= 0
 
-	# advance the dialogue
 	if talking and (_just_key(KEY_ENTER) or _just_key(KEY_SPACE) or _just_key(KEY_E)):
 		_advance_dialogue()
 
-	# tap assist (one nudge per fresh tap)
 	if not talking:
 		if _just_key(KEY_RIGHT) or _just_key(KEY_D):
 			kid.x += 3.2
@@ -170,7 +217,6 @@ func _physics_process(delta: float) -> void:
 		kid.face = 1
 
 	if talking:
-		# pin the kid against the NPC — no walking past mid-conversation
 		var n: Dictionary = _npcs[_talk_index]
 		if kid.x + kid.w > float(n["x"]) - 10.0:
 			kid.x = float(n["x"]) - 10.0 - kid.w
@@ -179,12 +225,14 @@ func _physics_process(delta: float) -> void:
 	_moving = (vx != 0.0)
 	if _moving:
 		_walk_phase += delta * 11.0
+		if _walk_phase - _step_pitch >= 0.55:
+			_step_pitch = _walk_phase
+			Audio.play_sfx("walk_step", 0.35)
 	kid.x += vx * TILE * delta
 	_resolve_x()
 
 	_cam = _cam.lerp(_target_cam(), min(1.0, delta * 12.0))
 
-	# walk off the end of the corridor -> surface
 	if kid.x > (W - 3) * TILE:
 		surface = true
 		surface_fade = min(1.0, surface_fade + delta * 0.8)
@@ -196,6 +244,7 @@ func _advance_dialogue() -> void:
 	if _talk_index < 0:
 		return
 	_talk_line += 1
+	Audio.play_sfx("dialogue_blip", 0.6)
 	if _talk_line >= _npcs[_talk_index]["lines"].size():
 		_done_npcs.append(_talk_index)
 		_talk_index = -1
@@ -234,7 +283,18 @@ func _draw() -> void:
 
 	draw_rect(Rect2(0, 0, VIEW_W, VIEW_H), Color("#0d0906"))
 
-	# corridor walls/pillars (only the stripe on screen)
+	# interior void tiles -> dark wall texture (corridor room), pillars get pillar texture
+	for ty in range(1, H - 1):
+		for tx in range(1, W - 1):
+			var px: float = float(tx * TILE) - cam_x
+			if px < -TILE or px > VIEW_W:
+				continue
+			var py := ty * TILE
+			var tiled: Texture2D = _tile_tex.get(WALL_TEX.resource_path, null)
+			if tiled != null:
+				draw_texture_rect(tiled, Rect2(px, py, TILE, TILE), false, Color(0.68, 0.62, 0.55, 1.0))
+
+	# textured walls / floor / pillars (only the stripe on screen)
 	for ty in H:
 		for tx in W:
 			if map[ty][tx] == " ":
@@ -243,40 +303,46 @@ func _draw() -> void:
 			if px < -TILE or px > VIEW_W:
 				continue
 			var py := ty * TILE
+			var tex: Texture2D = null
 			if ty == 0:
-				draw_rect(Rect2(px, py, TILE, TILE), Color("#2b2114"))
-				draw_rect(Rect2(px, py + TILE - 2, TILE, 2), Color("#1c140c"))
-				draw_rect(Rect2(px, py, 1, 3), Color("#17100a"))
+				tex = WALL_TEX
 			elif ty == H - 1:
-				draw_rect(Rect2(px, py, TILE, TILE), Color("#2a1e12"))
-				draw_rect(Rect2(px, py, TILE, 2), Color("#3b2a17"))
-				if tx % 2 == 0:
-					draw_rect(Rect2(px, py + 4, 1, 10), Color("#1a110a"))
-				if (tx * 7 + ty) % 5 == 0:
-					draw_rect(Rect2(px + 4 + (tx % 3), py + 8, 4, 1), Color("#0e0906"))
-			elif map[ty][tx] == "#":
-				draw_rect(Rect2(px, py, TILE, TILE), Color("#33241a"))
-				draw_rect(Rect2(px, py, 2, TILE), Color("#241a10"))
-				draw_rect(Rect2(px + TILE - 2, py, 2, TILE), Color("#50382c"))
-				draw_rect(Rect2(px, py, TILE, 3), Color("#4a3620"))
+				tex = FLOOR_TEX
+			else:
+				tex = PILLAR_TEX
+			var tiled: Texture2D = _tile_tex.get(tex.resource_path, null) if tex != null else null
+			draw_rect(Rect2(px, py, TILE, TILE), Color("#0e0906"))
+			if tiled != null:
+				draw_texture_rect(tiled, Rect2(px, py, TILE, TILE), false)
+			# darken the far edge of the top row / near edge of the floor — depth cue
+			if ty == 0:
+				draw_rect(Rect2(px, py, TILE, 3), Color(0, 0, 0, 0.45))
+				draw_rect(Rect2(px, py + TILE - 1, TILE, 1), Color(0, 0, 0, 0.35))
+			elif ty == H - 1:
+				draw_rect(Rect2(px, py, TILE, 2), Color(0.35, 0.26, 0.13, 0.35))
+				draw_rect(Rect2(px, py + TILE - 1, TILE, 1), Color(0, 0, 0, 0.5))
+			else:
+				draw_rect(Rect2(px, py, TILE, 2), Color(0, 0, 0, 0.5))
+				draw_rect(Rect2(px, py + TILE - 2, TILE, 2), Color(0, 0, 0, 0.5))
 
-	# torches — wall-mounted sconces, warm flicker + glow
+	# torches — wall sconces with a generated flame anim, warm glow
 	for i in range(4):
 		var tx := 6 + i * 7
 		var px: float = float(tx * TILE + 6) - cam_x
 		if px < -40 or px > VIEW_W + 40:
 			continue
 		var flicker: float = sin(time * 9.0 + i * 2.2) * 1.5
-		draw_circle(Vector2(px + 1, 25), 28 + flicker, Color(0.85, 0.35, 0.10, 0.08))
-		draw_circle(Vector2(px + 1, 25), 16 + flicker * 0.6, Color(0.95, 0.45, 0.12, 0.12))
-		draw_rect(Rect2(px - 2, 14, 7, 3), Color("#241a10"))
-		draw_rect(Rect2(px - 1, 18 + flicker * 0.5, 4, 9 + flicker), Color(0.98, 0.62, 0.16, 0.95))
-		draw_rect(Rect2(px, 22 + flicker, 2, 5), Color(0.99, 0.83, 0.33, 0.95))
+		draw_circle(Vector2(px + 2, 16), 42 + flicker, Color(0.85, 0.35, 0.10, 0.16))
+		draw_circle(Vector2(px + 2, 16), 20 + flicker * 0.6, Color(0.95, 0.45, 0.12, 0.24))
+		draw_texture_rect(BRACKET_TEX, Rect2(px - 2, 12, 9, 7), false)
+		var fi := int(time * 10.0 + i * 1.7) % _flame_frames.size()
+		if fi >= 0 and fi < _flame_frames.size():
+			draw_texture_rect(_flame_frames[fi], Rect2(px - 1, 2, 9, 12), false)
 
 	# speckle/grime dither over solid tiles — the Fallout 1 grain
 	_speckle_tiles(cam_x)
 
-	# NPCs — same walk-right layout, same palette, childhood town
+	# NPCs — childhood cast, same walk-right layout
 	for n in _npcs:
 		var nx: float = float(n["x"]) - cam_x
 		if nx < -40 or nx > VIEW_W + 40:
@@ -285,16 +351,13 @@ func _draw() -> void:
 		var face := 1 if kid.x + kid.w / 2.0 > float(n["x"]) else -1
 		NPC.draw(self, nx - 5.5, kid.y, face, n["kind"], sway)
 
-	# kid + locket charm
+	# kid (locket baked into the sprite)
 	var bob := 0
 	var step := -1
 	if _moving:
 		bob = int(round(sin(_walk_phase) * 1.0))
 		step = int(_walk_phase / PI) % 2
 	Kid.draw(self, kid.x - cam_x, kid.y, kid.face, bob, step)
-	# locket on the jacket — the one thing carried out
-	draw_rect(Rect2(kid.x - cam_x + 4, kid.y + 8, 3, 3), Color("#d19a45"))
-	draw_rect(Rect2(kid.x - cam_x + 5, kid.y + 9, 1, 3), Color("#e8d5a0"))
 
 	# childhood memory band — only when no NPC is talking
 	if _talk_index < 0 and not surface:
@@ -335,7 +398,6 @@ func _speckle_tiles(cam_x: float) -> void:
 				continue
 			var py := ty * TILE
 			var seed := tx * 131 + ty * 17
-			# per-tile speckles — dark grime dots + pale highlights, deterministic
 			for i in 4:
 				var hx := _hash(seed + i, 1) % 13
 				var hy := _hash(seed + i, 2) % 13
@@ -361,9 +423,9 @@ func _draw_bubble(nx: float, ny: float, name: String, text: String) -> void:
 	draw_rect(Rect2(bx + bw - 1, by, 1, bh), Color("#c99a44"))
 	draw_centered(name, bx + bw / 2.0, by + 11, 6, Color("#b8935a"))
 	draw_centered(text, bx + bw / 2.0, by + 29, 7, Color("#dcc394"))
-	# tail — small diamond toward the NPC
 	var tail_x := float(clamp(nx, bx + 16.0, bx + bw - 16.0))
 	draw_rect(Rect2(tail_x - 2, by + bh, 4, 4), Color("#100b07"))
+	draw_rect(Rect2(tail_x - 2, by + bh, 4, 1), Color("#c99a44"))
 
 func draw_centered(text: String, x: float, baseline_y: float, size: int, color: Color) -> void:
 	var w := ThemeDB.fallback_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x

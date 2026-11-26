@@ -4,7 +4,7 @@
  "normal": "gl",
  "depth": 0.035,
  "seam": {
-  "worst": 0.91,
+  "worst": 0.92,
   "map": "albedo"
  },
  "maps": {

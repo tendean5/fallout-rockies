@@ -14,8 +14,7 @@ var _master := 0.9
 
 func _ready() -> void:
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Master"), linear_to_db(_master))
-	var streams := [AMB, CRACKLE, BLIP, STEP, CHIME]
-	for s in streams:
+	for s in [AMB, CRACKLE]:
 		if "loop_mode" in s:
 			s.loop_mode = 1  # loop forward (smpl chunk import should already do this)
 
@@ -45,7 +44,7 @@ func play_sfx(name: String, vol := 1.0) -> void:
 	var stream = _sfx_stream(name)
 	if stream == null:
 		return
-	var player := null
+	var player: AudioStreamPlayer = null
 	for p in _pool:
 		if not p.playing:
 			player = p
@@ -67,7 +66,7 @@ func debug_state() -> String:
 	var p = _loops.get("ambience", null)
 	if p != null:
 		var st = p.stream
-		s += " ambience.loop_mode=%s" % str(getattr(st, "loop_mode", "?"))
+		s += " ambience.loop_mode=%s" % (str(st.loop_mode) if "loop_mode" in st else "?")
 	return s
 
 func _loop_stream(name: String) -> AudioStream:

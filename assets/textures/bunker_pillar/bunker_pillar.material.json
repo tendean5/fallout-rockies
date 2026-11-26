@@ -4,8 +4,8 @@
  "normal": "gl",
  "depth": 0.04,
  "seam": {
-  "worst": 0.96,
-  "map": "albedo"
+  "worst": 0.83,
+  "map": "normal"
  },
  "maps": {
   "albedo": "bunker_pillar_albedo.png",

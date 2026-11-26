@@ -8,6 +8,9 @@ var carry := {}
 var checkpoint := {}
 var holder: Node2D = null
 
+# Scene the loading screen hands off to (set before entering "loading").
+var load_target := "bunkers"
+
 # virtual input (used by smoke tests; keeps the scenes input-agnostic)
 var virtual_left := false
 var virtual_right := false
@@ -64,11 +67,13 @@ func new_game() -> void:
 	carry = {"artifact": "locket", "flag": null, "age": 6, "deaths": 0}
 	checkpoint = {}
 	FalloutSave.clear()
-	scene_change_to("bunkers")
+	load_target = "bunkers"
+	scene_change_to("loading")
 
 func load_game_run() -> void:
 	_load_checkpoint_and_carry()
-	scene_change_to("overworld")
+	load_target = "overworld"
+	scene_change_to("loading")
 
 func _load_checkpoint_and_carry() -> void:
 	var data := FalloutSave.load_game()
@@ -109,21 +114,21 @@ func _physics_process(delta: float) -> void:
 					success("title scene instantiated (%s)" % scene.debug_scene_name())
 					smoke_stage = 1
 					smoke_timer = 0.0
-					scene_change_to("bunkers")
+					new_game()
 				else:
 					fail("title scene missing or not running")
 					smoke_stage = 99
 		1:
-			if smoke_timer >= 0.2:
-				var scene := current_scene()
-				if scene != null and scene.has_method("debug_teleport_to_end"):
-					_bunkers_instance = scene
-					scene.debug_teleport_to_end()
-					smoke_stage = 2
-					smoke_timer = 0.0
-				else:
-					fail("bunkers scene missing")
-					smoke_stage = 99
+			var scene1 := current_scene()
+			if scene1 != null and scene1.has_method("debug_teleport_to_end"):
+				success("loading screen handed off to bunkers")
+				_bunkers_instance = scene1
+				_bunkers_instance.debug_teleport_to_end()
+				smoke_stage = 2
+				smoke_timer = 0.0
+			elif smoke_timer > 8.0:
+				fail("loading screen never handed off to bunkers")
+				smoke_stage = 99
 		2:
 			var scene2 := current_scene()
 			if scene2 != null and scene2 != _bunkers_instance:

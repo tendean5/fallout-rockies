@@ -1,84 +1,47 @@
-# Kid placeholder sprite drawing (shared by every scene).
-const PixelArt = preload("res://scripts/pixel_art.gd")
+# Kid sprite drawing — pxl-generated PNGs (chunky Fallout 1 pixels, hard outline).
+# Shared by every scene (bunker + overworld). face == -1 mirrors horizontally.
+const TEX_IDLE = preload("res://assets/sprites/sprites/kid_idle.png")
+const TEX_WALK_A = preload("res://assets/sprites/sprites/kid_walk_a.png")
+const TEX_WALK_B = preload("res://assets/sprites/sprites/kid_walk_b.png")
 
-const OUTLINE := Color("#0c0906")
-const HOOD := Color("#33261a")
-const SKIN := Color("#e2cfa8")
-const EYE := Color("#10100c")
-const JACKET := Color("#c9a03a")
-const STRAP := Color("#6b4f30")
-const LEG := Color("#241b12")
-const SHOE := Color("#14100a")
+const SPRITE_W := 11
+const SPRITE_H := 13
 
-const PAL := {
-	"O": OUTLINE,
-	"H": HOOD,
-	"F": SKIN,
-	"E": EYE,
-	"J": JACKET,
-	"S": STRAP,
-	"L": LEG,
-	"W": SHOE,
-}
+static var _filters_set := false
+static var _flipped: Dictionary = {}
 
-# idle sprite — 11 wide x 13 tall, rows top->bottom. Feet at row 12 (floor).
-const IDLE := [
-	"....OOO....",
-	"..OHHHHO...",
-	".OHHHHHHO..",
-	".OHHHHHHO..",
-	".OHFFFFO...",
-	".OHFFEFO...",
-	".OHFFFO....",
-	"..OOOOO....",
-	".OJJJJJO...",
-	"OJJSJJJO...",
-	"OJJJJJJJO..",
-	".LL..LL....",
-	".WW..WW....",
-]
+static func _ensure_defaults() -> void:
+	if _filters_set:
+		return
+	_filters_set = true
 
-# walk frames — step 0: left foot planted, right foot back
-const STEP_LEFT := [
-	"....OOO....",
-	"..OHHHHO...",
-	".OHHHHHHO..",
-	".OHHHHHHO..",
-	".OHFFFFO...",
-	".OHFFEFO...",
-	".OHFFFO....",
-	"..OOOOO....",
-	".OJJJJJO...",
-	"OJJSJJJO...",
-	"OJJJJJJJO..",
-	".LL...L....",
-	".WW...WW...",
-]
+static func _flip_tex(tex: Texture2D) -> Texture2D:
+	var key: String = tex.resource_path
+	if _flipped.has(key):
+		return _flipped[key]
+	var img: Image = tex.get_image()
+	if img == null:
+		return tex
+	var w := img.get_width()
+	var h := img.get_height()
+	var out := Image.create(w, h, false, img.get_format())
+	for y in h:
+		for x in w:
+			out.set_pixel(w - 1 - x, y, img.get_pixel(x, y))
+	var t := ImageTexture.create_from_image(out)
+	_flipped[key] = t
+	return t
 
-# step 1: right foot planted, left foot back
-const STEP_RIGHT := [
-	"....OOO....",
-	"..OHHHHO...",
-	".OHHHHHHO..",
-	".OHHHHHHO..",
-	".OHFFFFO...",
-	".OHFFEFO...",
-	".OHFFFO....",
-	"..OOOOO....",
-	".OJJJJJO...",
-	"OJJSJJJO...",
-	"OJJJJJJJO..",
-	".L...LL....",
-	".WW..WW....",
-]
-
-static func _pick(step: int) -> Array:
+static func _pick(step: int) -> Texture2D:
 	if step == 0:
-		return STEP_LEFT
+		return TEX_WALK_A
 	if step == 1:
-		return STEP_RIGHT
-	return IDLE
+		return TEX_WALK_B
+	return TEX_IDLE
 
 static func draw(canvas: Node2D, x: float, y: float, face: int, bob := 0, step := -1) -> void:
-	var map := _pick(step)
-	PixelArt.draw_map(canvas, map, PAL, x, y, face, bob)
+	_ensure_defaults()
+	var tex := _pick(step)
+	if face < 0:
+		tex = _flip_tex(tex)
+	canvas.draw_texture(tex, Vector2(x, y + bob))

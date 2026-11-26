@@ -32,6 +32,7 @@ var _prev_keys: Dictionary = {}
 var _cam := Vector2(0, 0)
 var _moving := false
 var _walk_phase := 0.0
+var _step_pitch := 0.0
 
 func _ready() -> void:
 	map = WorldMap.make_map()
@@ -53,6 +54,8 @@ func _ready() -> void:
 	kid.y = checkpoint["y"]
 	region = WorldMap.region_name(int(kid.x / TILE), int(kid.y / TILE))
 	_cam = _target_cam()
+	_step_pitch = 0.0
+	Audio.start_loop("ambience")
 
 func debug_scene_name() -> String:
 	return "overworld"
@@ -118,6 +121,9 @@ func _physics_process(delta: float) -> void:
 	_moving = (vx != 0.0 or vy != 0.0)
 	if _moving:
 		_walk_phase += delta * 11.0
+		if _walk_phase - _step_pitch >= 0.55:
+			_step_pitch = _walk_phase
+			Audio.play_sfx("walk_step", 0.4)
 
 	kid.x += kid.vx * delta
 	kid.y += vy * TILE * delta

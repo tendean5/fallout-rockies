@@ -28,4 +28,8 @@ window/size/maximize=false
 
 [rendering]
 
+textures/default_filters/canvas_textures/filter/minify=0
+textures/default_filters/canvas_textures/filter/mag=0
+textures/default_filters/canvas_textures/repeat/enable=0
+
 antialiasing/edge/enable=false

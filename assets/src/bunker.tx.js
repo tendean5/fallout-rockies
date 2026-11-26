@@ -5,8 +5,8 @@
 
 // ---- wall: dark brown brick, slightly weathered ----
 pal({
-	brick: "#33241a", brickL: "#4a3620", brickD: "#1c1208",
-	mortar: "#0e0906", grime: "#241a10",
+	brick: "#5a4226", brickL: "#7d5a33", brickD: "#362614",
+	mortar: "#2a1c10", grime: "#33241a",
 })
 const b = bricks({ rows: 12, cols: 4, gap: 0.035, bevel: 0.02, wobble: 0.6, seed: 3 }).as("brick")
 const grain = noise({ scale: 32, octaves: 4, seed: 2 }).as("grain")
@@ -17,14 +17,14 @@ material("bunker_wall", { size: 128, depth: 0.035 }, {
 	height: wallHeight,
 	color: ramp(b.id.mix(grain, 0.4).mix(chips, 0.3), ["brickD", "brick", "brickL"])
 		.mix("mortar", b.mask.invert())
-		.mix("grime", grime.mul(0.45)),
+		.mix("grime", grime.mul(0.3)),
 	rough: grain.levels(0, 1, 0.75, 0.9).mix(0.6, grime),
 })
 
 // ---- floor: smooth poured concrete with stains and cracks ----
 pal({
-	concrete: "#2a1e12", concreteL: "#3b2a17", concreteD: "#18100a",
-	stain: "#1c1208", crack: "#0e0906", grime: "#0e0906",
+	concrete: "#463420", concreteL: "#6b5230", concreteD: "#2a1f12",
+	stain: "#281c10", crack: "#1a1108", grime: "#1a1108",
 })
 const n = noise({ scale: 26, octaves: 5, seed: 4 }).as("concrete")
 const cracks = ridged({ scale: 10, octaves: 3, seed: 8 }).threshold(0.9, 0.04).as("cracks")
@@ -33,17 +33,17 @@ const floorHeight = n.add(cracks.mul(-0.35)).sub(stain.mul(0.12)).as("height")
 material("bunker_floor", { size: 128, depth: 0.02 }, {
 	height: floorHeight,
 	color: ramp(n, ["concreteD", "concrete", "concreteL"])
-		.mix("stain", stain.mul(0.55))
-		.mix("crack", cracks.mul(0.85)),
+		.mix("stain", stain.mul(0.42))
+		.mix("crack", cracks.mul(0.75)),
 	rough: n.levels(0, 1, 0.7, 0.85).mix(0.55, stain),
 })
 
 // ---- pillar: darker version of the wall brick ----
 pal({
-	brick: "#241a10", brickL: "#33241a", brickD: "#120b05",
-	mortar: "#0e0906", grime: "#241a10",
+	brick: "#45311e", brickL: "#624826", brickD: "#2b1d0f",
+	mortar: "#2a1c10", grime: "#33241a",
 })
-const p = bricks({ rows: 4, cols: 2, gap: 0.03, bevel: 0.025, wobble: 0.5, seed: 11 }).as("pillar_brick")
+const p = bricks({ rows: 6, cols: 2, gap: 0.028, bevel: 0.025, wobble: 0.5, seed: 11 }).as("pillar_brick")
 const pgrain = noise({ scale: 20, octaves: 4, seed: 6 }).as("grain")
 const pillarHeight = p.mul(0.8).add(pgrain.mul(0.14)).as("height")
 material("bunker_pillar", { size: 128, depth: 0.04 }, {

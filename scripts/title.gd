@@ -24,6 +24,8 @@ var _mouse_prev_left := false
 
 func _ready() -> void:
 	t = 0.0
+	Audio.stop_loop("ambience")
+	Audio.stop_loop("torch_crackle")
 
 func debug_scene_name() -> String:
 	return "title"
