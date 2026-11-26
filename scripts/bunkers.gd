@@ -17,6 +17,9 @@ const H := 28
 const WALK := 3.4
 const VIEW_W := 320
 const VIEW_H := 176
+const ZOOM := 1.5
+const FL_W := int(VIEW_W / ZOOM)
+const FL_H := int(VIEW_H / ZOOM)
 
 const MEMORY_LINES := {
 	"cafeteria": "I was a kid in the Enclave. The way out is to the right.",
@@ -115,10 +118,11 @@ func _ensure_furn_solid() -> void:
 					_furn_solid[str(fx) + "," + str(fy)] = true
 
 func _ready() -> void:
+	self.scale = Vector2(ZOOM, ZOOM)
 	_ensure_textures()
 	_ensure_furn_solid()
 	kid.x = 2 * TILE
-	kid.y = 12 * TILE
+	kid.y = 11 * TILE
 	kid.w = 20
 	kid.h = 28
 	kid.face = 1
@@ -238,21 +242,6 @@ func _physics_process(delta: float) -> void:
 	if fade > 0.0:
 		fade = max(0.0, fade - delta * 2.0)
 	_map()
-	if int(time * 20.0) % 3 == 0:
-		var kc := int((kid.x + kid.w / 2.0) / TILE)
-		var kr := int((kid.y + kid.h / 2.0) / TILE)
-		var dbg := ""
-		for dy in range(-1, 3):
-			var sr := ""
-			for dx in range(-2, 4):
-				var tx2 := kc + dx
-				var ty2 := kr + dy
-				var ch2 := "?"
-				if tx2 >= 0 and ty2 >= 0 and tx2 < W and ty2 < H:
-					ch2 = "#" if map[ty2][tx2] == "#" else ("F" if _furn_solid.has(str(tx2) + "," + str(ty2)) else ".")
-				sr += ch2
-			dbg += sr + "\n"
-		print("KIDMAP: kid=(", kid.x, ",", kid.y, ")\n", dbg)
 
 	if _just_key(KEY_ESCAPE):
 		Game.scene_change_to("title")
@@ -345,8 +334,8 @@ func _advance_dialogue() -> void:
 		_talk_line = 0
 
 func _target_cam() -> Vector2:
-	var cam_x: float = clamp(kid.x + kid.w / 2.0 - VIEW_W / 2.0, 0.0, float(W * TILE - VIEW_W))
-	var cam_y: float = clamp(kid.y + kid.h / 2.0 - VIEW_H / 2.0, 0.0, float(H * TILE - VIEW_H))
+	var cam_x: float = clamp(kid.x + kid.w / 2.0 - FL_W / 2.0, 0.0, float(W * TILE - FL_W))
+	var cam_y: float = clamp(kid.y + kid.h / 2.0 - FL_H / 2.0, 0.0, float(H * TILE - FL_H))
 	return Vector2(cam_x, cam_y)
 
 func _resolve_collisions() -> void:
@@ -432,12 +421,12 @@ func _draw() -> void:
 	var cam_y := _cam.y
 	var m := _map()
 
-	draw_rect(Rect2(0, 0, VIEW_W, VIEW_H), Color("#0d0906"))
+	draw_rect(Rect2(0, 0, FL_W, FL_H), Color("#0d0906"))
 
 	var tx0: int = max(0, int(cam_x / TILE) - 1)
 	var ty0: int = max(0, int(cam_y / TILE) - 1)
-	var tx1: int = min(W - 1, int((cam_x + VIEW_W) / TILE) + 1)
-	var ty1: int = min(H - 1, int((cam_y + VIEW_H) / TILE) + 1)
+	var tx1: int = min(W - 1, int((cam_x + FL_W) / TILE) + 1)
+	var ty1: int = min(H - 1, int((cam_y + FL_H) / TILE) + 1)
 
 	var floor_tex: Texture2D = _tile_tex.get(FLOOR_TEX.resource_path, null)
 	var wall_tex: Texture2D = _tile_tex.get(WALL_TEX.resource_path, null)
@@ -449,7 +438,7 @@ func _draw() -> void:
 				continue
 			var px := float(tx * TILE) - cam_x
 			var py := float(ty * TILE) - cam_y
-			if px < -TILE or px > VIEW_W or py < -TILE or py > VIEW_H:
+			if px < -TILE or px > FL_W or py < -TILE or py > FL_H:
 				continue
 			if floor_tex != null:
 				draw_texture_rect(floor_tex, Rect2(px, py, TILE, TILE), false, Color(0.95, 0.88, 0.76, 1.0))
@@ -463,7 +452,7 @@ func _draw() -> void:
 				continue
 			var px := float(tx * TILE) - cam_x
 			var py := float(ty * TILE) - cam_y
-			if px < -TILE or px > VIEW_W or py < -TILE or py > VIEW_H:
+			if px < -TILE or px > FL_W or py < -TILE or py > FL_H:
 				continue
 			if wall_tex != null:
 				draw_texture_rect(wall_tex, Rect2(px, py, TILE, TILE), false)
@@ -484,10 +473,10 @@ func _draw() -> void:
 		var py: float = d.y - cam_y
 		if px < -40 or px > VIEW_W + 40:
 			continue
-		fill_ellipse(px, py - 4, 10, 4, Color(0, 0, 0, 0.35))
+		fill_ellipse(px, py + 1, 14, 3, Color(0, 0, 0, 0.55))
 	var kid_px := kid.x - cam_x
 	var kid_py := kid.y - cam_y
-	fill_ellipse(kid_px + kid.w / 2.0, kid_py + kid.h - 3, 10, 4, Color(0, 0, 0, 0.35))
+	fill_ellipse(kid_px + kid.w / 2.0, kid_py + kid.h + 1, 14, 3, Color(0, 0, 0, 0.55))
 
 	for n in _npcs:
 		var d: Vector2 = n["feet"]
@@ -509,9 +498,9 @@ func _draw() -> void:
 
 	# memory band — only when no NPC is talking
 	if _talk_index < 0 and not surface:
-		draw_rect(Rect2(0, VIEW_H - 15, VIEW_W, 15), Color("#140f0a"))
-		draw_rect(Rect2(0, VIEW_H - 15, VIEW_W, 1), Color("#362718"))
-		draw_centered(MEMORY_LINES[_room], VIEW_W / 2.0, VIEW_H - 4, 7, Color("#c9b088"))
+		draw_rect(Rect2(0, FL_H - 15, FL_W, 15), Color("#140f0a"))
+		draw_rect(Rect2(0, FL_H - 15, FL_W, 1), Color("#362718"))
+		draw_centered(MEMORY_LINES[_room], FL_W / 2.0, FL_H - 4, 7, Color("#c9b088"))
 
 	# speech bubble above the speaking NPC
 	if _talk_index >= 0:
@@ -523,18 +512,18 @@ func _draw() -> void:
 	draw_left("AGE 6", 6, 11, 7, Color("#9a8352"))
 
 	if surface:
-		draw_centered("you fall, wake at the surface...", VIEW_W / 2.0, VIEW_H / 2.0 - 6, 9, Color("#c99a44"))
+		draw_centered("you fall, wake at the surface...", FL_W / 2.0, FL_H / 2.0 - 6, 9, Color("#c99a44"))
 
 	# vignette — dark edges, Fallout mood
-	draw_rect(Rect2(0, 0, VIEW_W, 6), Color(0, 0, 0, 0.35))
-	draw_rect(Rect2(0, VIEW_H - 6, VIEW_W, 6), Color(0, 0, 0, 0.35))
-	draw_rect(Rect2(0, 0, 6, VIEW_H), Color(0, 0, 0, 0.30))
-	draw_rect(Rect2(VIEW_W - 6, 0, 6, VIEW_H), Color(0, 0, 0, 0.30))
+	draw_rect(Rect2(0, 0, FL_W, 6), Color(0, 0, 0, 0.35))
+	draw_rect(Rect2(0, FL_H - 6, FL_W, 6), Color(0, 0, 0, 0.35))
+	draw_rect(Rect2(0, 0, 6, FL_H), Color(0, 0, 0, 0.30))
+	draw_rect(Rect2(FL_W - 6, 0, 6, FL_H), Color(0, 0, 0, 0.30))
 
 	if fade > 0.0:
-		draw_rect(Rect2(0, 0, VIEW_W, VIEW_H), Color(0.023, 0.015, 0.007, fade))
+		draw_rect(Rect2(0, 0, FL_W, FL_H), Color(0.023, 0.015, 0.007, fade))
 	if surface_fade > 0.0:
-		draw_rect(Rect2(0, 0, VIEW_W, VIEW_H), Color(0.023, 0.015, 0.007, surface_fade))
+		draw_rect(Rect2(0, 0, FL_W, FL_H), Color(0.023, 0.015, 0.007, surface_fade))
 
 func _draw_furniture(cam_x: float, cam_y: float) -> void:
 	for f in FURNITURE:
@@ -658,10 +647,10 @@ func _speckle_floors(cam_x: float, cam_y: float, ty0: int, ty1: int, tx0: int, t
 				draw_rect(Rect2(px + 1.5 + float(hx), py + 1.5 + float(hy), 2.0, 1.0), col)
 
 func _draw_bubble(nx: float, ny: float, name: String, text: String) -> void:
-	var bw := 276.0
+	var bw: float = min(FL_W - 12.0, 230.0)
 	var bh := 40.0
-	var bx := float(clamp(nx - bw / 2.0, 4.0, VIEW_W - bw - 4.0))
-	var by := float(clamp(ny - 28.0 - bh - 10.0, 4.0, VIEW_H - bh - 4.0))
+	var bx := float(clamp(nx - bw / 2.0, 4.0, FL_W - bw - 4.0))
+	var by := float(clamp(ny - 28.0 - bh - 10.0, 4.0, FL_H - bh - 4.0))
 	draw_rect(Rect2(bx, by, bw, bh), Color("#100b07"))
 	draw_rect(Rect2(bx, by, bw, 1), Color("#c99a44"))
 	draw_rect(Rect2(bx, by + bh - 1, bw, 1), Color("#c99a44"))
