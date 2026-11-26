@@ -33,8 +33,6 @@ func _ready() -> void:
 	if start_scene == "battle":
 		Game.kid = Game.kid if Game.kid != null and typeof(Game.kid) == TYPE_DICTIONARY and Game.kid.has("current_hp") else BattleData.starting_kid()
 		Game.battle_context = {"region": "Denver Ruins"}
-	if start_scene == "overworld" and Game.battle_origin == null:
-		Game.battle_origin = {}
 	Game.scene_change_to(start_scene)
 
 func _process(delta: float) -> void:

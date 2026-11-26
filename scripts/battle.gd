@@ -34,7 +34,7 @@ func _ready() -> void:
 	var ctx = Game.battle_context if Game.battle_context != null else {}
 	zone = str(ctx.get("region", "Denver Ruins"))
 	palette = Data.zone_palette(zone)
-	kid = Game.kid.duplicate(true) if Game.kid != null and typeof(Game.kid) == TYPE_DICTIONARY else Data.starting_kid()
+	kid = Game.kid.duplicate(true) if Game.kid != null and typeof(Game.kid) == TYPE_DICTIONARY and Game.kid.has("current_hp") else Data.starting_kid()
 	var enemy_id = str(ctx.get("enemy_id", Data.pick_species(zone)))
 	enemy = Data.enemy_for(enemy_id, int(kid.get("level", 1)))
 	_timer = 0.5
