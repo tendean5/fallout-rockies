@@ -1,0 +1,20 @@
+{
+ "name": "bunker_pillar",
+ "size": 128,
+ "normal": "gl",
+ "depth": 0.04,
+ "seam": {
+  "worst": 0.96,
+  "map": "albedo"
+ },
+ "maps": {
+  "albedo": "bunker_pillar_albedo.png",
+  "normal": "bunker_pillar_normal.png",
+  "height": "bunker_pillar_height.png",
+  "roughness": "bunker_pillar_roughness.png",
+  "metallic": "bunker_pillar_metallic.png",
+  "ao": "bunker_pillar_ao.png",
+  "orm": "bunker_pillar_orm.png",
+  "emissive": null
+ }
+}

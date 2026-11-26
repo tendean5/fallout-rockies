@@ -1,0 +1,20 @@
+{
+ "name": "bunker_floor",
+ "size": 128,
+ "normal": "gl",
+ "depth": 0.02,
+ "seam": {
+  "worst": 1.09,
+  "map": "normal"
+ },
+ "maps": {
+  "albedo": "bunker_floor_albedo.png",
+  "normal": "bunker_floor_normal.png",
+  "height": "bunker_floor_height.png",
+  "roughness": "bunker_floor_roughness.png",
+  "metallic": "bunker_floor_metallic.png",
+  "ao": "bunker_floor_ao.png",
+  "orm": "bunker_floor_orm.png",
+  "emissive": null
+ }
+}

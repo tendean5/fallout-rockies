@@ -1,0 +1,20 @@
+{
+ "name": "bunker_wall",
+ "size": 128,
+ "normal": "gl",
+ "depth": 0.035,
+ "seam": {
+  "worst": 0.91,
+  "map": "albedo"
+ },
+ "maps": {
+  "albedo": "bunker_wall_albedo.png",
+  "normal": "bunker_wall_normal.png",
+  "height": "bunker_wall_height.png",
+  "roughness": "bunker_wall_roughness.png",
+  "metallic": "bunker_wall_metallic.png",
+  "ao": "bunker_wall_ao.png",
+  "orm": "bunker_wall_orm.png",
+  "emissive": null
+ }
+}
