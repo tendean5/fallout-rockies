@@ -3,6 +3,7 @@ extends Node2D
 
 const WorldMap = preload("res://scripts/world_map.gd")
 const Kid = preload("res://scripts/kid.gd")
+const KidState = preload("res://scripts/kid_state.gd")
 
 const TILE := WorldMap.TILE
 const W := 40
@@ -12,7 +13,7 @@ const WALK := 3.1
 const HINT_TIME := 3.0
 
 var map: Array = []
-var kid := {"x": 3 * TILE, "y": (H - 1) * TILE - 13, "w": 11, "h": 13, "face": 1}
+var kid := KidState.new()
 var time := 0.0
 var fade := 1.0
 var surface := false
@@ -23,14 +24,18 @@ var _finished := false
 
 func _ready() -> void:
 	map = _make_map()
-	kid = {"x": 3 * TILE, "y": (H - 1) * TILE - 13, "w": 11, "h": 13, "face": 1}
+	kid.x = 3 * TILE
+	kid.y = (H - 1) * TILE - 13
+	kid.w = 11
+	kid.h = 13
+	kid.face = 1
 	fade = 1.0
 
 func debug_scene_name() -> String:
 	return "bunkers"
 
 func debug_teleport_to_end() -> void:
-	kid["x"] = (W - 2) * TILE
+	kid.x = (W - 2) * TILE
 
 func _make_map() -> Array:
 	var m: Array = []
@@ -70,24 +75,24 @@ func _physics_process(delta: float) -> void:
 
 	# tap assist (one nudge per fresh tap)
 	if _just_key(KEY_RIGHT) or _just_key(KEY_D):
-		kid["x"] += 3.2
+		kid.x += 3.2
 	if _just_key(KEY_LEFT) or _just_key(KEY_A):
-		kid["x"] -= 3.2
+		kid.x -= 3.2
 
 	var left := Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A) or Game.virtual_left
 	var right := Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D) or Game.virtual_right
 	var vx := 0.0
 	if left:
 		vx = -WALK
-		kid["face"] = -1
+		kid.face = -1
 	if right:
 		vx = WALK
-		kid["face"] = 1
-	kid["x"] += vx * TILE * delta
+		kid.face = 1
+	kid.x += vx * TILE * delta
 	_resolve_x()
 
 	# walk off the end of the corridor -> surface
-	if kid["x"] > (W - 3) * TILE:
+	if kid.x > (W - 3) * TILE:
 		surface = true
 		surface_fade = min(1.0, surface_fade + delta * 0.8)
 		if surface_fade >= 1.0:
@@ -125,7 +130,7 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, 320, 176), Color("#16100a"))
 
 	# current camera: center on kid, clamped along x
-	var cam_x := max(0.0, min(kid["x"] - 320 / 2, W * TILE - 320))
+	var cam_x := max(0.0, min(kid.x - 320 / 2, W * TILE - 320))
 
 	# corridor walls (only visible stripe)
 	for ty in H:
@@ -146,7 +151,7 @@ func _draw() -> void:
 			draw_rect(Rect2(px, ty * TILE, TILE, 2), Color("#4a3620") if ty == H - 1 else Color("#3d2c1a"))
 
 	# kid
-	Kid.draw(self, kid["x"] - cam_x, kid["y"], kid["face"])
+	Kid.draw(self, kid.x - cam_x, kid.y, kid.face)
 
 	# hint text
 	if hint_timer > 0.0:

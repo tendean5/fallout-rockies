@@ -4,6 +4,7 @@ extends Node2D
 
 const WorldMap = preload("res://scripts/world_map.gd")
 const Kid = preload("res://scripts/kid.gd")
+const KidState = preload("res://scripts/kid_state.gd")
 
 const TILE := WorldMap.TILE
 const MAP_W := WorldMap.MAP_W
@@ -15,7 +16,7 @@ const HUD_W := 320
 const HUD_H := 176
 
 var map: Array = []
-var kid := {"x": 0.0, "y": 0.0, "w": 11, "h": 13, "vx": 0.0, "face": 1}
+var kid := KidState.new()
 var time := 0.0
 var fade := 1.0
 var dead := false
@@ -46,8 +47,9 @@ func _ready() -> void:
 	else:
 		checkpoint = {"x": START_TILE["x"] * TILE, "y": START_TILE["y"] * TILE}
 
-	kid = {"x": checkpoint["x"], "y": checkpoint["y"], "w": 11, "h": 13, "vx": 0.0, "face": 1}
-	region = WorldMap.region_name(int(kid["x"] / TILE), int(kid["y"] / TILE))
+	kid.x = checkpoint["x"]
+	kid.y = checkpoint["y"]
+	region = WorldMap.region_name(int(kid.x / TILE), int(kid.y / TILE))
 
 func debug_scene_name() -> String:
 	return "overworld"
@@ -62,8 +64,8 @@ func debug_teleport_to_water() -> void:
 	for ty in MAP_H:
 		for tx in MAP_W:
 			if map[ty][tx] == WorldMap.T_WATER:
-				kid["x"] = tx * TILE + 1.0
-				kid["y"] = ty * TILE + 1.0
+				kid.x = float(tx * TILE) + 1.0
+				kid.y = float(ty * TILE) + 1.0
 				drown = 0.0
 				return
 
@@ -84,13 +86,13 @@ func _physics_process(delta: float) -> void:
 
 	# tap assist (one nudge per fresh tap)
 	if _just_key(KEY_LEFT) or _just_key(KEY_A):
-		kid["x"] -= 3.2
+		kid.x -= 3.2
 	if _just_key(KEY_RIGHT) or _just_key(KEY_D):
-		kid["x"] += 3.2
+		kid.x += 3.2
 	if _just_key(KEY_UP) or _just_key(KEY_W):
-		kid["y"] -= 3.2
+		kid.y -= 3.2
 	if _just_key(KEY_DOWN) or _just_key(KEY_S):
-		kid["y"] += 3.2
+		kid.y += 3.2
 
 	var left := Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A) or Game.virtual_left
 	var right := Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D) or Game.virtual_right
@@ -101,30 +103,30 @@ func _physics_process(delta: float) -> void:
 	var vy := 0.0
 	if left:
 		vx = -WALK
-		kid["face"] = -1
+		kid.face = -1
 	if right:
 		vx = WALK
-		kid["face"] = 1
+		kid.face = 1
 	if up: vy = -WALK
 	if down: vy = WALK
-	kid["vx"] = vx * TILE
+	kid.vx = vx * TILE
 
-	kid["x"] += kid["vx"] * delta
-	kid["y"] += vy * TILE * delta
+	kid.x += kid.vx * delta
+	kid.y += vy * TILE * delta
 	_resolve_collisions()
 
-	kid["x"] = clamp(kid["x"], 0.0, MAP_W * TILE - kid["w"])
-	kid["y"] = clamp(kid["y"], 0.0, MAP_H * TILE - kid["h"])
+	kid.x = clamp(kid.x, 0.0, MAP_W * TILE - kid.w)
+	kid.y = clamp(kid.y, 0.0, MAP_H * TILE - kid.h)
 
 	# checkpoint tracking (only safe tiles)
 	var tile := _tile_at_kid()
 	var in_water := tile == WorldMap.T_WATER
 	if not _is_in_solid() and not in_water and not dead:
-		checkpoint = {"x": kid["x"], "y": kid["y"]}
+		checkpoint = {"x": kid.x, "y": kid.y}
 		saved_time += delta
 		if saved_time >= Game.checkpoint_interval:
 			saved_time = 0.0
-			Game.checkpoint = {"x": int(kid["x"] / TILE), "y": int(kid["y"] / TILE)}
+			Game.checkpoint = {"x": int(kid.x / TILE), "y": int(kid.y / TILE)}
 			Game.save_game({"flag": "overworld"})
 
 	# drown timer
@@ -136,7 +138,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		drown = max(0.0, drown - delta * 2.0)
 
-	region = WorldMap.region_name(int(kid["x"] / TILE), int(kid["y"] / TILE))
+	region = WorldMap.region_name(int(kid.x / TILE), int(kid.y / TILE))
 
 func _tile_at(tx: int, ty: int) -> int:
 	return WorldMap.tile_at(map, tx, ty)
@@ -145,10 +147,10 @@ func _is_solid_tile(tx: int, ty: int) -> bool:
 	return WorldMap.is_solid(_tile_at(tx, ty))
 
 func _is_in_solid() -> bool:
-	var x0 := int(kid["x"] / TILE)
-	var x1 := int((kid["x"] + kid["w"]) / TILE)
-	var y0 := int(kid["y"] / TILE)
-	var y1 := int((kid["y"] + kid["h"]) / TILE)
+	var x0 := int(kid.x / TILE)
+	var x1 := int((kid.x + kid.w) / TILE)
+	var y0 := int(kid.y / TILE)
+	var y1 := int((kid.y + kid.h) / TILE)
 	for ty in range(y0, y1 + 1):
 		for tx in range(x0, x1 + 1):
 			if _is_solid_tile(tx, ty):
@@ -156,8 +158,8 @@ func _is_in_solid() -> bool:
 	return false
 
 func _tile_at_kid() -> int:
-	var cx := kid["x"] + kid["w"] / 2.0
-	var cy := kid["y"] + kid["h"] / 2.0
+	var cx := kid.x + kid.w / 2.0
+	var cy := kid.y + kid.h / 2.0
 	return _tile_at(int(cx / TILE), int(cy / TILE))
 
 func _resolve_collisions() -> void:
@@ -217,12 +219,12 @@ func _reset_kid() -> void:
 	dead = false
 	dead_timer = 0.0
 	drown = 0.0
-	kid["x"] = checkpoint["x"]
-	kid["y"] = checkpoint["y"]
+	kid.x = checkpoint["x"]
+	kid.y = checkpoint["y"]
 
 func _draw() -> void:
-	var cam_x := clamp(kid["x"] + kid["w"] / 2.0 - HUD_W / 2.0, 0.0, MAP_W * TILE - HUD_W)
-	var cam_y := clamp(kid["y"] + kid["h"] / 2.0 - HUD_H / 2.0, 0.0, MAP_H * TILE - HUD_H)
+	var cam_x := clamp(kid.x + kid.w / 2.0 - HUD_W / 2.0, 0.0, MAP_W * TILE - HUD_W)
+	var cam_y := clamp(kid.y + kid.h / 2.0 - HUD_H / 2.0, 0.0, MAP_H * TILE - HUD_H)
 	_cam = Vector2(cam_x, cam_y)
 
 	draw_rect(Rect2(0, 0, HUD_W, HUD_H), Color("#14100b"))
@@ -257,7 +259,7 @@ func _draw() -> void:
 			elif t == WorldMap.T_SNOW:
 				draw_rect(Rect2(px + 3, py + 9, 10, 3), Color("#e6ddce"))
 
-	Kid.draw(self, kid["x"] - cam_x, kid["y"] - cam_y, kid["face"])
+	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.face)
 
 	# HUD bar
 	draw_rect(Rect2(0, 0, HUD_W, 14), Color(0.039, 0.031, 0.02, 0.82))

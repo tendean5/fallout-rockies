@@ -106,7 +106,6 @@ func _physics_process(delta: float) -> void:
 			if smoke_frames >= 4:
 				var scene := current_scene()
 				if scene != null and scene.has_method("debug_scene_name"):
-					scene._force_draw()
 					success("title scene instantiated (%s)" % scene.debug_scene_name())
 					smoke_stage = 1
 					smoke_timer = 0.0
@@ -141,7 +140,6 @@ func _physics_process(delta: float) -> void:
 		3:
 			var scene3 := current_scene()
 			if scene3 != null:
-				scene3._force_draw()
 				if smoke_timer >= 0.4:
 					success("overworld drew without error")
 					smoke_stage = 4
@@ -173,7 +171,6 @@ func _physics_process(delta: float) -> void:
 		6:
 			var scene6 := current_scene()
 			if scene6 != null:
-				scene6._force_draw()
 				if scene6.debug_deaths() > 0 and not scene6.debug_is_dead():
 					success("drown → death → reset (deaths=%d)" % scene6.debug_deaths())
 					smoke_stage = 7
