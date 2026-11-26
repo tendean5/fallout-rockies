@@ -20,3 +20,7 @@ export function writeSave(data) {
     return null;
   }
 }
+
+export function clearSave() {
+  try { localStorage.removeItem('fallout-rockies.save.v1'); } catch {}
+}

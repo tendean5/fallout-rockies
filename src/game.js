@@ -1,7 +1,7 @@
 import { Title } from './scenes/title.js';
 import { Bunkers } from './scenes/bunkers.js';
-import { Adult } from './scenes/adult.js';
-import { loadSave } from './save.js';
+import { Overworld } from './scenes/overworld.js';
+import { loadSave, writeSave } from './save.js';
 
 export class Game {
   constructor(canvas) {
@@ -12,6 +12,7 @@ export class Game {
     this.justPressed = new Set();
     this.save = loadSave();
     this.carry = this.save?.carry || { artifact: 'locket', flag: null, age: 6, deaths: 0 };
+    this.checkpoint = this.save?.checkpoint || null;
     this.setScene('title');
 
     window.addEventListener('keydown', (e) => {
@@ -44,7 +45,7 @@ export class Game {
     this.sceneName = name;
     if (name === 'title') this.scene = new Title(this);
     else if (name === 'bunkers') this.scene = new Bunkers(this);
-    else if (name === 'adult') this.scene = new Adult(this);
+    else if (name === 'overworld') this.scene = new Overworld(this);
     this.justPressed.clear();
   }
 
@@ -59,6 +60,15 @@ export class Game {
   }
 
   goTitle() { this.setScene('title'); }
+
+  saveGame(extra) {
+    return writeSave({
+      age: this.carry.age || 6,
+      checkpoint: this.checkpoint,
+      carry: { ...this.carry, age: this.carry.age || 6 },
+      ...extra,
+    });
+  }
 
   start() {
     this.last = performance.now();

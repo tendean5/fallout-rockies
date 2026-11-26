@@ -1,5 +1,5 @@
 import { text, rect } from '../ui.js';
-import { loadSave, writeSave } from '../save.js';
+import { loadSave, clearSave } from '../save.js';
 
 // Menu layout (canvas is 320x176)
 const BTN_Y = [100, 126];
@@ -55,10 +55,10 @@ export class Title {
     if (b.id === 'new') {
       this.game.carry = { artifact: 'locket', flag: null, age: 6, deaths: 0 };
       this.game.save = null;
-      writeSave({ carry: this.game.carry, age: 6, flag: null }); // clears/overwrite
+      clearSave();
       this.game.setScene('bunkers');
     } else if (b.id === 'load') {
-      this.game.setScene('adult');
+      this.game.setScene('overworld');
     }
   }
 
