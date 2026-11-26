@@ -32,12 +32,12 @@ The ending is a *choice*, not a defeat condition (not built yet).
 ## Verified
 
 - `godot --headless -- --smoke`: PASS — title → bunkers → save → overworld → walk/checkpoint (x=7) → drown → death → reset (deaths=1), 0 failures, exit 0.
+- Rendering verified via `--shot <path>` (captures a frame 0.6s in and prints a color histogram): title shows dark bg + gold text + button fills; overworld shows dirt/water tiles + gold kid + HUD bar. Both were frozen after frame 1 until the `queue_redraw()` fix (scenes call it every physics frame now).
 
 ## Known / not verified
 
-- **Playtesting in a real window (display) is the remaining task** — no interactive build was run here.
+- **Playtesting in a real window (display) is the remaining task** — the shot harness is headless (Metal), not interactive play.
 - Art is placeholder (flat-color tiles + drawn rect kid, like the old canvas build). Real pixel-art sprites still needed.
-- HUD text rendering is unverified visually (headless run only exercises the draw path).
 - Not yet built: quests/story/factions, combat, dialogue, audio.
 
 ## Open decisions
@@ -51,4 +51,5 @@ The ending is a *choice*, not a defeat condition (not built yet).
 
 - Run: `~/Applications/Godot.app/Contents/MacOS/Godot --path .` (Godot 4.7.2 installed in ~/Applications)
 - Headless smoke: `godot --headless --path . -- --smoke`
+- Visual capture: `godot --path . -- --shot /tmp/shot.png --start=overworld` (debug flag; captures a frame 0.6s in, prints a color histogram, quits)
 - Export: not set up yet.

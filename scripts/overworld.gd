@@ -30,6 +30,8 @@ var saved_time := 0.0
 
 var _prev_keys: Dictionary = {}
 var _cam := Vector2(0, 0)
+var _moving := false
+var _walk_phase := 0.0
 
 func _ready() -> void:
 	map = WorldMap.make_map()
@@ -50,6 +52,7 @@ func _ready() -> void:
 	kid.x = checkpoint["x"]
 	kid.y = checkpoint["y"]
 	region = WorldMap.region_name(int(kid.x / TILE), int(kid.y / TILE))
+	_cam = _target_cam()
 
 func debug_scene_name() -> String:
 	return "overworld"
@@ -71,6 +74,7 @@ func debug_teleport_to_water() -> void:
 
 func _physics_process(delta: float) -> void:
 	time += delta
+	queue_redraw()
 	if fade > 0.0:
 		fade = max(0.0, fade - delta * 1.8)
 
@@ -111,12 +115,18 @@ func _physics_process(delta: float) -> void:
 	if down: vy = WALK
 	kid.vx = vx * TILE
 
+	_moving = (vx != 0.0 or vy != 0.0)
+	if _moving:
+		_walk_phase += delta * 11.0
+
 	kid.x += kid.vx * delta
 	kid.y += vy * TILE * delta
 	_resolve_collisions()
 
 	kid.x = clamp(kid.x, 0.0, float(MAP_W * TILE - kid.w))
 	kid.y = clamp(kid.y, 0.0, float(MAP_H * TILE - kid.h))
+
+	_cam = _cam.lerp(_target_cam(), min(1.0, delta * 12.0))
 
 	# checkpoint tracking (only safe tiles)
 	var tile := _tile_at_kid()
@@ -129,6 +139,7 @@ func _physics_process(delta: float) -> void:
 			Game.checkpoint = {"x": int(kid.x / TILE), "y": int(kid.y / TILE)}
 			Game.save_game({"flag": "overworld"})
 
+
 	# drown timer
 	if in_water:
 		drown += delta
@@ -139,6 +150,11 @@ func _physics_process(delta: float) -> void:
 		drown = max(0.0, drown - delta * 2.0)
 
 	region = WorldMap.region_name(int(kid.x / TILE), int(kid.y / TILE))
+
+func _target_cam() -> Vector2:
+	var cam_x: float = clamp(kid.x + kid.w / 2.0 - HUD_W / 2.0, 0.0, float(MAP_W * TILE - HUD_W))
+	var cam_y: float = clamp(kid.y + kid.h / 2.0 - HUD_H / 2.0, 0.0, float(MAP_H * TILE - HUD_H))
+	return Vector2(cam_x, cam_y)
 
 func _tile_at(tx: int, ty: int) -> int:
 	return WorldMap.tile_at(map, tx, ty)
@@ -223,9 +239,8 @@ func _reset_kid() -> void:
 	kid.y = checkpoint["y"]
 
 func _draw() -> void:
-	var cam_x: float = clamp(kid.x + kid.w / 2.0 - HUD_W / 2.0, 0.0, float(MAP_W * TILE - HUD_W))
-	var cam_y: float = clamp(kid.y + kid.h / 2.0 - HUD_H / 2.0, 0.0, float(MAP_H * TILE - HUD_H))
-	_cam = Vector2(cam_x, cam_y)
+	var cam_x := _cam.x
+	var cam_y := _cam.y
 
 	draw_rect(Rect2(0, 0, HUD_W, HUD_H), Color("#14100b"))
 
@@ -259,7 +274,10 @@ func _draw() -> void:
 			elif t == WorldMap.T_SNOW:
 				draw_rect(Rect2(px + 3, py + 9, 10, 3), Color("#e6ddce"))
 
-	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.face)
+	var bob := 0
+	if _moving:
+		bob = int(round(sin(_walk_phase) * 1.0))
+	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.face, bob)
 
 	# HUD bar
 	draw_rect(Rect2(0, 0, HUD_W, 14), Color(0.039, 0.031, 0.02, 0.82))
@@ -279,7 +297,8 @@ func _draw() -> void:
 		draw_rect(Rect2(0, 0, HUD_W, HUD_H), Color(0.023, 0.015, 0.007, fade))
 
 func draw_centered(text: String, x: float, baseline_y: float, size: int, color: Color) -> void:
-	draw_string(ThemeDB.fallback_font, Vector2(x, baseline_y), text, HORIZONTAL_ALIGNMENT_CENTER, -1, size, color)
+	var w := ThemeDB.fallback_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	draw_string(ThemeDB.fallback_font, Vector2(x - w / 2.0, baseline_y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
 func draw_left(text: String, x: float, baseline_y: float, size: int, color: Color) -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(x, baseline_y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
