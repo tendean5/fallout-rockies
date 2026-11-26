@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="icon" href="data:," />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fallout Rockies</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #0b0806;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  canvas {
+    width: 960px; height: 528px; max-width: 100vw; max-height: 100vh;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+    background: #141008;
+  }
+  #help {
+    position: fixed; bottom: 8px; left: 0; right: 0; text-align: center;
+    color: #7d7058; font: 13px monospace; user-select: none; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+  <canvas id="game" width="320" height="176"></canvas>
+  <div id="help">Arrows / WASD to move &middot; Space to jump &middot; Escape back to menu</div>
+  <script type="module" src="src/main.js?v=6"></script>
+</body>
+</html>
