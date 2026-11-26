@@ -100,18 +100,18 @@ func _physics_process(delta: float) -> void:
 
 func _resolve_x() -> void:
 	var k = kid
-	var x0 := int(k["x"] / TILE)
-	var x1 := int((k["x"] + k["w"]) / TILE)
-	var y0 := int(k["y"] / TILE)
-	var y1 := int((k["y"] + k["h"]) / TILE)
+	var x0 := int(k.x / TILE)
+	var x1 := int((k.x + k.w) / TILE)
+	var y0 := int(k.y / TILE)
+	var y1 := int((k.y + k.h) / TILE)
 	for ty in range(y0, y1 + 1):
 		for tx in range(x0, x1 + 1):
 			if not _is_solid(tx, ty):
 				continue
-			if k["x"] + k["w"] > tx * TILE and k["x"] < tx * TILE:
-				k["x"] = tx * TILE - k["w"]
-			elif k["x"] < (tx + 1) * TILE and k["x"] + k["w"] > (tx + 1) * TILE:
-				k["x"] = (tx + 1) * TILE
+			if k.x + k.w > tx * TILE and k.x < tx * TILE:
+				k.x = tx * TILE - k.w
+			elif k.x < (tx + 1) * TILE and k.x + k.w > (tx + 1) * TILE:
+				k.x = (tx + 1) * TILE
 
 func _finish() -> void:
 	if _finished:
@@ -130,14 +130,14 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, 320, 176), Color("#16100a"))
 
 	# current camera: center on kid, clamped along x
-	var cam_x := max(0.0, min(kid.x - 320 / 2, W * TILE - 320))
+	var cam_x: float = max(0.0, min(kid.x - 160.0, float(W * TILE - 320)))
 
 	# corridor walls (only visible stripe)
 	for ty in H:
 		for tx in W:
 			if map[ty][tx] == " ":
 				continue
-			var px := float(tx * TILE) - cam_x
+			var px: float = float(tx * TILE) - cam_x
 			if px < -TILE or px > 320:
 				continue
 			var color := Color("#2c2117")
@@ -179,5 +179,3 @@ func _just_key(code: int) -> bool:
 	_prev_keys[code] = cur
 	return fresh
 
-func _force_draw() -> void:
-	_draw()

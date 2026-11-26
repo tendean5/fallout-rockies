@@ -18,7 +18,12 @@ The JS/canvas prototype (superseded) lives in `archive/js-canvas/`.
 
 ## Run it
 
-Open `fallout-rockies/` in Godot 4 (any recent stable), press **F5**.
+Open `fallout-rockies/` in Godot 4 — either run it from the editor (F5) or from the terminal:
+
+```sh
+~/Applications/Godot.app/Contents/MacOS/Godot --path "."
+```
+
 
 The title screen starts a new game through the bunker prologue; the bunker
 auto-saves the kid (age 13) and drops them into the overworld at the
@@ -27,7 +32,7 @@ airport. Deaths reset to the last safe checkpoint with carry-forward state
 
 ## Smoke test (automated)
 
-With Godot's binary available:
+With Godot 4 available (e.g. `~/Applications/Godot.app`):
 
 ```sh
 godot --headless --path . -- --smoke

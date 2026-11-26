@@ -105,5 +105,3 @@ func _just_key(code: int) -> bool:
 func draw_centered(text: String, x: float, baseline_y: float, size: int, color: Color) -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(x, baseline_y), text, HORIZONTAL_ALIGNMENT_CENTER, -1, size, color)
 
-func _force_draw() -> void:
-	_draw()

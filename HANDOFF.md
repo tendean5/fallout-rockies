@@ -1,113 +1,54 @@
-# HANDOFF — Fallout Rockies
+# HANDOFF — Fallout Rockies (Godot 4)
 
-> New session should pick this up as the primary brief. It's a snapshot of the
-> state of the project, the decisions made, and the work still to do.
+> Jump-off document. The browser/JS build is archived in `archive/js-canvas/`.
 
 ## The game
 
 **Fallout Rockies** — an original, Colorado-specific, Fallout-*inspired*
-roguelike. Not a clone (Fallout is Bethesda IP — original names; we used
-names like "BOS" as placeholders that should likely be renamed before any
-real release). Pixel art, low-res canvas (320×176 internal, scaled ×3),
-zero dependencies, plain JavaScript in the browser — no build step.
+roguelike. Not a clone (Fallout is Bethesda IP — original names; "BoS" is a
+placeholder that should be renamed before real release).
+**Format**: 1-player, Godot 4, original art style (placeholder pixel art
+drawn procedurally — replaces `archive/js-canvas/` prototype).
 
-**Format**: 1-player, browser-based, no accounts, no backend. Save lives in
-`localStorage` under `fallout-rockies.save.v1` (versioned, with seed +
-carry-forwards: artifact, flag, age, deaths, checkpoint). Demo goal: prove
-the premise + the die-and-return loop feel right in days, not months.
+**Structure**: Hades-style die-and-return. Death returns to the last
+checkpoint; carry-forward state (artifact, flag, age, deaths) persists.
+The ending is a *choice*, not a defeat condition (not built yet).
 
-## Design decisions locked in
+**Engine**: Godot 4.7.2 (GDScript). Top-down overworld, like Fallout 1/2.
 
-- **Tone**: gritty with humor — Fallout 1-style wasteland, plus Colorado
-  Western flavor. Never mustache-twirling.
-- **Setting**: post-apocalyptic Colorado — Denver (urban grid), Summit County
-  (high country), Colorado Springs (USAFA/NORAD), Golden (Coors brewery +
-  mines), Boulder (science), ski towns, Platte River, Leadville/mining towns,
-  Cheyenne Mountain dome, the Blucifer statue cult, Broncos stadium ruins,
-  Red Rocks, Lookout Mountain, Denver Tech Center, government buildings.
-- **The lore spine**: The Enclave (airport bunkers) = US government
-  continuation (from Cold War-era sites: NORAD, USAFA, Cheyenne Mountain).
-  The kid sees evidence someone high up is NOT who they say they are — a
-  Chinese spy — and gets exiled. The secret runs the whole timeline.
-- **The player**: an Enclave kid, ~6, exiled for seeing the evidence in
-  childhood, adopted by the BoS (Brotherhood of Steel — renamed later),
-  grows up across the game's time-jumps — 13 (becoming-man ceremony), 18
-  (meet other factions, option to leave BoS), 24 (leading a faction).
-- **Structure**: Hades-style die-and-return. Death returns to the last
-  checkpoint; carry-forward state (artifacts, flags, age, deaths,
-  checkpoint) persists. The ending is a **choice**, not a defeat — no
-  correct ending.
-- **Engine**: browser canvas, plain JS. Pixel art (low-res, ~320×176 playfield).
-- **Architecture**: menu → childhood bunker scene (prologue) → time jump
-  → overworld. The bunker scene is now a **walk-through corridor** — NOT a
-  platformer (no pit, no jump, no gravity).
+## Current state — Godot rebuild (PASS)
 
-## Current state — rebuilt overworld (uncommitted)
+- `project.godot` — viewport 320×176 logical, `canvas_items` stretch, no antialias; autoloads `Game` (`scripts/game.gd`); main scene `scenes/Main.tscn`.
+- `scenes/Main.tscn` — root Node2D, creates holder node, starts title scene.
+- `scripts/game.gd` — autoload: carry state, checkpoint, scene switching (`scene_change_to`), save, smoke mode.
+- `scripts/save.gd` — versioned JSON save `user://fallout_rockies.save.json` (v1).
+- `scripts/world_map.gd` — procedural 72×52 map (same layout as the JS port): Denver grid, airport zone (SW), high country (E), desert (W), peaks (N-E w/ snow pass), dense forest (N-W), Platte River across the bottom w/ road bridge. Region names + palette.
+- `scripts/title.gd` — menu: NEW GAME (clears save → bunker prologue) / LOAD (overworld). Keyboard nav + mouse hover/click.
+- `scripts/bunkers.gd` — prologue walkthrough corridor (no platformer mechanics): kid walks right; surface fade → save (age 13) → overworld.
+- `scripts/overworld.gd` — THE GAME: camera-follow top-down renderer, kid movement (tap assist + hold, 3.4 tiles/s), collisions, water drowning (1.6s → death), checkpoint autonsave (≈1.5s safe walking), HUD (AGE + region + DEATHS), death overlay → reset kid to checkpoint.
+- `scripts/kid.gd` / `kid_state.gd` — kid sprite drawing + typed kid state object.
+- The old browser prototype is archived in `archive/js-canvas/` (reference only).
 
-- `index.html` — canvas 320×176, dark bg, scaled ×3, favicon hack
-- `src/main.js` — boots the game
-- `src/game.js` — Game class (loop, input, scene manager, mouse click,
-  mouse hover + pointerdown events)
-- `src/ui.js` — text/rect helpers
-- `src/save.js` — load/write/clear (versioned JSON)
-- `src/worldmap.js` — procedural world map (72×52 tiles): Denver grid
-  (blocks + dirt streets), desert, forest, high country, mountain ridge
-  with a snow pass at cols 46–49, Platte River across the bottom (wavy, with
-  a road bridge), region names, `colorOf(t, x, y)`
-- `src/scenes/title.js` — menu: New Game (clears save, starts childhood
-  bunker) / Load (overworld). Keyboard nav (Up/Down + Enter/Space) + mouse
-  click/hover.
-- `src/scenes/bunkers.js` — childhood prologue: walkthrough corridor
-  (no platformer mechanics). Tap + hold movement. Walking past the corridor
-  → fade → "you fall, wake at the surface…" → save (age 13) → overworld.
-- `src/scenes/overworld.js` — THE GAME: tile renderer with region-based
-  tints; kid movement (tap nudge + hold, WALK=3.4 tiles/s); smooth
-  camera-follow; water (Platte River) = drowning timer (1.6s → death);
-  checkpoint-forward autonsave (every ~1.5s of safe walking); HUD
-  (AGE + region name · deaths); death overlay → resetKid → last checkpoint;
-  fade-in at scene start.
-- `src/scenes/adult.js` — REMOVED (replaced by overworld)
-- `.gitignore`, `README.md` (updated to match overworld), `CONCEPT.md`,
-  `BUILD.md`
-- `window.__game` debug handle in main.js (shallow in the automated
-  browser unlike a real browser — ignore; not relied on)
+## Verified
 
-## What's known / not verified
+- `godot --headless -- --smoke`: PASS — title → bunkers → save → overworld → walk/checkpoint (x=7) → drown → death → reset (deaths=1), 0 failures, exit 0.
 
-- Automated harness (this agent environment) **cannot hold keys** like a
-  player would. Verified: menu loads cleanly, Enter/New Game/Load
-  transitions work, the bunkers and overworld scenes render with zero
-  console errors, canvas responds to key events.
-- NOT verified by play: the kid's actual movement feel, tap assists,
-  water drown at the Platte, checkpoint saves, actual death → reset loop.
-  **Playtesting in a real browser is the first remaining task.**
-- The automated harness cannot read `window.__game` (phantom global — not
-  a bug in the game; the game runs fine).
-- The overworld has no content/story/quests yet — just the map + movement.
+## Known / not verified
 
-## Open decisions (want user input)
+- **Playtesting in a real window (display) is the remaining task** — no interactive build was run here.
+- Art is placeholder (flat-color tiles + drawn rect kid, like the old canvas build). Real pixel-art sprites still needed.
+- HUD text rendering is unverified visually (headless run only exercises the draw path).
+- Not yet built: quests/story/factions, combat, dialogue, audio.
 
-1. How big the world should be / whether the overworld is the right shape
-   vs. the childhood being the main thing.
-2. Art direction — kid is an untextured colored rectangle; tiles are flat
-   color. Real sprites still needed.
-3. Region composition / story beats per zone.
-4. Dialogue/story structure for the adult (factions, the secret).
-5. Engine question (browser canvas vs. Godot — Godot is the strong
-   migration target if the game proves fun; browser canvas for now).
-6. Stale `?v=N` cache-busting in index.html — bump when code changes if
-   needed (the harness caches modules aggressively).
+## Open decisions
 
-## Known to the user, not blocking
-
-- `window.__game` is used only as a dev handle; not needed by the game.
-- `src/scenes/adult.js` is deleted — not needed anymore.
-- The childhood bunker is now purely a one-time prologue, not a platformer.
-- Deaths reset the kid to the last checkpoint; the save persists the
-  checkpoint across sessions.
+1. Exporter/run workflow — how to get the game in front of a player (Godot binary vs export).
+2. Art direction — kid/tiles pixel art.
+3. Region composition / story beats.
+4. Save schema migration path (v1 is bare: version, age, checkpoint, carry, savedAt).
 
 ## Commands
 
-Run: `python3 -m http.server 8000` from the repo folder → open http://localhost:8000
-Commit state: see `git status --short` (repo at `/Users/tomendean/Documents/Default Project/fallout-rockies`).
-Last commit was `876855c platformer mvp`; the rebuild is unstaged/uncommitted.
+- Run: `~/Applications/Godot.app/Contents/MacOS/Godot --path .` (Godot 4.7.2 installed in ~/Applications)
+- Headless smoke: `godot --headless --path . -- --smoke`
+- Export: not set up yet.

@@ -115,8 +115,8 @@ func _physics_process(delta: float) -> void:
 	kid.y += vy * TILE * delta
 	_resolve_collisions()
 
-	kid.x = clamp(kid.x, 0.0, MAP_W * TILE - kid.w)
-	kid.y = clamp(kid.y, 0.0, MAP_H * TILE - kid.h)
+	kid.x = clamp(kid.x, 0.0, float(MAP_W * TILE - kid.w))
+	kid.y = clamp(kid.y, 0.0, float(MAP_H * TILE - kid.h))
 
 	# checkpoint tracking (only safe tiles)
 	var tile := _tile_at_kid()
@@ -169,10 +169,10 @@ func _resolve_collisions() -> void:
 
 func _resolve_x() -> bool:
 	var k = kid
-	var x0 := int(k["x"] / TILE)
-	var x1 := int((k["x"] + k["w"]) / TILE)
-	var y0 := int(k["y"] / TILE)
-	var y1 := int((k["y"] + k["h"]) / TILE)
+	var x0 := int(k.x / TILE)
+	var x1 := int((k.x + k.w) / TILE)
+	var y0 := int(k.y / TILE)
+	var y1 := int((k.y + k.h) / TILE)
 	var hit := false
 	for ty in range(y0, y1 + 1):
 		for tx in range(x0, x1 + 1):
@@ -180,31 +180,31 @@ func _resolve_x() -> bool:
 				continue
 			var left_edge := tx * TILE
 			var right_edge := (tx + 1) * TILE
-			var mid_x := k["x"] + k["w"] / 2.0
+			var mid_x: float = k.x + k.w / 2.0
 			if mid_x < (left_edge + right_edge) / 2.0:
-				k["x"] = left_edge - k["w"]
+				k.x = left_edge - k.w
 			else:
-				k["x"] = right_edge
+				k.x = right_edge
 			hit = true
 	return hit
 
 func _resolve_y() -> void:
 	var k = kid
-	var x0 := int(k["x"] / TILE)
-	var x1 := int((k["x"] + k["w"]) / TILE)
-	var y0 := int(k["y"] / TILE)
-	var y1 := int((k["y"] + k["h"]) / TILE)
+	var x0 := int(k.x / TILE)
+	var x1 := int((k.x + k.w) / TILE)
+	var y0 := int(k.y / TILE)
+	var y1 := int((k.y + k.h) / TILE)
 	for ty in range(y0, y1 + 1):
 		for tx in range(x0, x1 + 1):
 			if not _is_solid_tile(tx, ty):
 				continue
 			var top_edge := ty * TILE
 			var bottom_edge := (ty + 1) * TILE
-			var mid_y := k["y"] + k["h"] / 2.0
+			var mid_y: float = k.y + k.h / 2.0
 			if mid_y < (top_edge + bottom_edge) / 2.0:
-				k["y"] = top_edge - k["h"]
+				k.y = top_edge - k.h
 			else:
-				k["y"] = bottom_edge
+				k.y = bottom_edge
 
 func _die() -> void:
 	if dead:
@@ -223,20 +223,20 @@ func _reset_kid() -> void:
 	kid.y = checkpoint["y"]
 
 func _draw() -> void:
-	var cam_x := clamp(kid.x + kid.w / 2.0 - HUD_W / 2.0, 0.0, MAP_W * TILE - HUD_W)
-	var cam_y := clamp(kid.y + kid.h / 2.0 - HUD_H / 2.0, 0.0, MAP_H * TILE - HUD_H)
+	var cam_x: float = clamp(kid.x + kid.w / 2.0 - HUD_W / 2.0, 0.0, float(MAP_W * TILE - HUD_W))
+	var cam_y: float = clamp(kid.y + kid.h / 2.0 - HUD_H / 2.0, 0.0, float(MAP_H * TILE - HUD_H))
 	_cam = Vector2(cam_x, cam_y)
 
 	draw_rect(Rect2(0, 0, HUD_W, HUD_H), Color("#14100b"))
 
-	var tx0 := max(0, int(cam_x / TILE) - 1)
-	var ty0 := max(0, int(cam_y / TILE) - 1)
-	var tx1 := min(MAP_W - 1, int((cam_x + HUD_W) / TILE) + 1)
-	var ty1 := min(MAP_H - 1, int((cam_y + HUD_H) / TILE) + 1)
+	var tx0: int = max(0, int(cam_x / TILE) - 1)
+	var ty0: int = max(0, int(cam_y / TILE) - 1)
+	var tx1: int = min(MAP_W - 1, int((cam_x + HUD_W) / TILE) + 1)
+	var ty1: int = min(MAP_H - 1, int((cam_y + HUD_H) / TILE) + 1)
 
 	for ty in range(ty0, ty1 + 1):
 		for tx in range(tx0, tx1 + 1):
-			var t := map[ty][tx]
+			var t: int = map[ty][tx]
 			var px := float(tx * TILE) - cam_x
 			var py := float(ty * TILE) - cam_y
 			if px < -TILE or px > HUD_W or py < -TILE or py > HUD_H:
@@ -254,7 +254,7 @@ func _draw() -> void:
 			elif t == WorldMap.T_ROAD:
 				draw_rect(Rect2(px + 6, py, 4, TILE), Color("#413422"))
 			elif t == WorldMap.T_WATER:
-				var w := int((time * 3 + tx + ty) % 3)
+				var w: int = int(fposmod(time * 3.0 + tx + ty, 3.0))
 				draw_rect(Rect2(px, py + 5 + w * 2, TILE, 2), Color(0.47, 0.67, 0.82, 0.35))
 			elif t == WorldMap.T_SNOW:
 				draw_rect(Rect2(px + 3, py + 9, 10, 3), Color("#e6ddce"))
@@ -293,5 +293,3 @@ func _just_key(code: int) -> bool:
 	_prev_keys[code] = cur
 	return fresh
 
-func _force_draw() -> void:
-	_draw()
