@@ -275,9 +275,11 @@ func _draw() -> void:
 				draw_rect(Rect2(px + 3, py + 9, 10, 3), Color("#e6ddce"))
 
 	var bob := 0
+	var step := -1
 	if _moving:
 		bob = int(round(sin(_walk_phase) * 1.0))
-	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.face, bob)
+		step = int(_walk_phase / PI) % 2
+	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.face, bob, step)
 
 	# HUD bar
 	draw_rect(Rect2(0, 0, HUD_W, 14), Color(0.039, 0.031, 0.02, 0.82))

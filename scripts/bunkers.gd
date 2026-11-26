@@ -293,8 +293,8 @@ func _draw() -> void:
 		step = int(_walk_phase / PI) % 2
 	Kid.draw(self, kid.x - cam_x, kid.y, kid.face, bob, step)
 	# locket on the jacket — the one thing carried out
-	draw_rect(Rect2(kid.x - cam_x + 4, kid.y + 6, 3, 4), Color("#d19a45"))
-	draw_rect(Rect2(kid.x - cam_x + 5, kid.y + 8, 1, 2), Color("#e8d5a0"))
+	draw_rect(Rect2(kid.x - cam_x + 4, kid.y + 8, 3, 3), Color("#d19a45"))
+	draw_rect(Rect2(kid.x - cam_x + 5, kid.y + 9, 1, 3), Color("#e8d5a0"))
 
 	# childhood memory band — only when no NPC is talking
 	if _talk_index < 0 and not surface:
