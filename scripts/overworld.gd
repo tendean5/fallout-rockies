@@ -2,6 +2,9 @@
 # checkpoint autonsave, death → reset-to-checkpoint.
 extends Node2D
 
+const WorldMap = preload("res://scripts/world_map.gd")
+const Kid = preload("res://scripts/kid.gd")
+
 const TILE := WorldMap.TILE
 const MAP_W := WorldMap.MAP_W
 const MAP_H := WorldMap.MAP_H
@@ -284,7 +287,7 @@ func draw_right(text: String, x: float, baseline_y: float, size: int, color: Col
 
 func _just_key(code: int) -> bool:
 	var cur := Input.is_physical_key_pressed(code)
-	var fresh := cur and not _prev_keys.get(code, false)
+	var fresh: bool = cur and not bool(_prev_keys.get(code, false))
 	_prev_keys[code] = cur
 	return fresh
 

@@ -1,6 +1,9 @@
 # Childhood prologue — walkthrough corridor → fade → surface → overworld.
 extends Node2D
 
+const WorldMap = preload("res://scripts/world_map.gd")
+const Kid = preload("res://scripts/kid.gd")
+
 const TILE := WorldMap.TILE
 const W := 40
 const H := 11
@@ -167,7 +170,7 @@ func draw_left(text: String, x: float, baseline_y: float, size: int, color: Colo
 
 func _just_key(code: int) -> bool:
 	var cur := Input.is_physical_key_pressed(code)
-	var fresh := cur and not _prev_keys.get(code, false)
+	var fresh: bool = cur and not bool(_prev_keys.get(code, false))
 	_prev_keys[code] = cur
 	return fresh
 

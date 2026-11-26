@@ -2,6 +2,8 @@
 class_name GameState
 extends Node
 
+const FalloutSave = preload("res://scripts/save.gd")
+
 var carry := {}
 var checkpoint := {}
 var holder: Node2D = null
@@ -144,6 +146,9 @@ func _physics_process(delta: float) -> void:
 					success("overworld drew without error")
 					smoke_stage = 4
 					smoke_timer = 0.0
+			elif smoke_timer > 2.5:
+				fail("overworld never appeared")
+				smoke_stage = 99
 		4:
 			virtual_right = true
 			if smoke_timer >= 0.6:

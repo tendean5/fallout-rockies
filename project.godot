@@ -14,7 +14,6 @@ Game="*res://scripts/game.gd"
 [display]
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
-window/stretch/scale="min"
 window/size/viewport_width=320
 window/size/viewport_height=176
 window/size/resizable=true

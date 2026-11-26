@@ -1,6 +1,8 @@
 # Title screen — menu with New Game / Load, keyboard + mouse.
 extends Node2D
 
+const FalloutSave = preload("res://scripts/save.gd")
+
 const VIEW_W := 320
 const VIEW_H := 176
 
@@ -96,7 +98,7 @@ func _confirm() -> void:
 
 func _just_key(code: int) -> bool:
 	var cur := Input.is_physical_key_pressed(code)
-	var fresh := cur and not _prev_keys.get(code, false)
+	var fresh: bool = cur and not bool(_prev_keys.get(code, false))
 	_prev_keys[code] = cur
 	return fresh
 
