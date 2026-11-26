@@ -1,6 +1,8 @@
 # Root scene — registers the holder and kicks off the title scene.
 extends Node2D
 
+const BattleData = preload("res://scripts/battle_data.gd")
+
 var holder: Node2D = null
 var _shot_target := ""
 var _shot_timer := 0.0
@@ -28,6 +30,11 @@ func _ready() -> void:
 			_talk = true
 		elif args[i].begins_with("--time="):
 			_capture_time = max(0.1, float(args[i].substr(7)))
+	if start_scene == "battle":
+		Game.kid = Game.kid if Game.kid != null and typeof(Game.kid) == TYPE_DICTIONARY and Game.kid.has("current_hp") else BattleData.starting_kid()
+		Game.battle_context = {"region": "Denver Ruins"}
+	if start_scene == "overworld" and Game.battle_origin == null:
+		Game.battle_origin = {}
 	Game.scene_change_to(start_scene)
 
 func _process(delta: float) -> void:

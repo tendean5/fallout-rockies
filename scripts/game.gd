@@ -3,9 +3,13 @@ class_name GameState
 extends Node
 
 const FalloutSave = preload("res://scripts/save.gd")
+const BattleData = preload("res://scripts/battle_data.gd")
 
 var carry := {}
 var checkpoint := {}
+var kid := {}
+var battle_context := {}
+var battle_origin := {}
 var holder: Node2D = null
 
 # Scene the loading screen hands off to (set before entering "loading").
@@ -66,12 +70,16 @@ func scene_change_to(name: String) -> void:
 func new_game() -> void:
 	carry = {"artifact": "locket", "flag": null, "age": 6, "deaths": 0}
 	checkpoint = {}
+	kid = BattleData.starting_kid()
+	battle_origin = {}
 	FalloutSave.clear()
 	load_target = "bunkers"
 	scene_change_to("loading")
 
 func load_game_run() -> void:
 	_load_checkpoint_and_carry()
+	kid = BattleData.starting_kid()
+	battle_origin = {}
 	load_target = "overworld"
 	scene_change_to("loading")
 
@@ -183,6 +191,37 @@ func _physics_process(delta: float) -> void:
 					fail("drown-death never happened")
 					smoke_stage = 7
 		7:
+			var s7 := current_scene()
+			if s7 != null and s7.has_method("debug_trigger_battle"):
+				s7.debug_trigger_battle()
+				smoke_stage = 8
+				smoke_timer = 0.0
+			elif smoke_timer > 3.0:
+				fail("overworld never became battle-ready")
+				smoke_stage = 99
+		8:
+			var s8 := current_scene()
+			if s8 != null and s8.has_method("debug_force_attack"):
+				success("wild encounter \u2192 battle scene")
+				s8.debug_kill_enemy()
+				s8.debug_force_attack()
+				smoke_stage = 9
+				smoke_timer = 0.0
+			elif smoke_timer > 3.0:
+				fail("battle scene never appeared")
+				smoke_stage = 99
+		9:
+			var s9 := current_scene()
+			if s9 != null and s9.has_method("debug_scene_name") and s9.debug_scene_name() == "overworld":
+				success("battle resolved \u2192 overworld")
+				smoke_stage = 10
+				smoke_timer = 0.0
+			elif s9 != null and s9.has_method("debug_scene_name") and s9.debug_scene_name() == "battle":
+				pass
+			elif smoke_timer > 12.0:
+				fail("battle never returned to overworld")
+				smoke_stage = 99
+		10:
 			print_results_and_quit()
 			smoke_stage = 99
 		99:

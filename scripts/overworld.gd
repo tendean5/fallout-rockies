@@ -33,6 +33,9 @@ var _cam := Vector2(0, 0)
 var _moving := false
 var _walk_phase := 0.0
 var _step_pitch := 0.0
+var _last_tile := Vector2i(-1, -1)
+var _encounter_cooldown := 0.0
+var _trigger_tiles: Dictionary = {}
 
 func _ready() -> void:
 	map = WorldMap.make_map()
@@ -50,9 +53,18 @@ func _ready() -> void:
 	else:
 		checkpoint = {"x": START_TILE["x"] * TILE, "y": START_TILE["y"] * TILE}
 
-	kid.x = checkpoint["x"]
-	kid.y = checkpoint["y"]
+	var origin = Game.battle_origin
+	if origin != null and typeof(origin) == TYPE_DICTIONARY and origin.get("px", null) != null:
+		kid.x = clamp(float(origin["px"]), 0.0, float(MAP_W * TILE - kid.w))
+		kid.y = clamp(float(origin["py"]), 0.0, float(MAP_H * TILE - kid.h))
+		checkpoint = {"x": kid.x, "y": kid.y}
+		Game.battle_origin = {}
+	else:
+		kid.x = checkpoint["x"]
+		kid.y = checkpoint["y"]
 	region = WorldMap.region_name(int(kid.x / TILE), int(kid.y / TILE))
+	_trigger_tiles = _build_trigger_tiles()
+	_last_tile = Vector2i(int(kid.x / TILE), int(kid.y / TILE))
 	_cam = _target_cam()
 	_step_pitch = 0.0
 	Audio.start_loop("ambience")
@@ -156,6 +168,52 @@ func _physics_process(delta: float) -> void:
 		drown = max(0.0, drown - delta * 2.0)
 
 	region = WorldMap.region_name(int(kid.x / TILE), int(kid.y / TILE))
+	_encounter_cooldown = max(0.0, _encounter_cooldown - delta)
+	_check_encounter()
+
+func debug_trigger_battle() -> void:
+	_launch_battle()
+
+func _build_trigger_tiles() -> Dictionary:
+	var out := {}
+	for ty in MAP_H:
+		for tx in MAP_W:
+			var t = map[ty][tx]
+			if t != WorldMap.T_FOREST and t != WorldMap.T_WATER:
+				continue
+			for dy in [-1, 0, 1]:
+				for dx in [-1, 0, 1]:
+					var nx = tx + dx
+					var ny = ty + dy
+					if nx < 0 or nx >= MAP_W or ny < 0 or ny >= MAP_H:
+						continue
+					if map[ny][nx] == WorldMap.T_FOREST or map[ny][nx] == WorldMap.T_WATER:
+						continue
+					out["%d,%d" % [nx, ny]] = true
+	return out
+
+func _is_trigger_zone() -> bool:
+	var tx = int(kid.x / TILE)
+	var ty = int(kid.y / TILE)
+	return _trigger_tiles.has("%d,%d" % [tx, ty])
+
+func _check_encounter() -> void:
+	if dead:
+		return
+	var tx := int(kid.x / TILE)
+	var ty := int(kid.y / TILE)
+	if Vector2i(tx, ty) != _last_tile:
+		_last_tile = Vector2i(tx, ty)
+		if _encounter_cooldown <= 0.0 and _is_trigger_zone():
+			_launch_battle()
+			_encounter_cooldown = 0.75
+
+func _launch_battle() -> void:
+	if region == "":
+		region = WorldMap.region_name(int(kid.x / TILE), int(kid.y / TILE))
+	Game.battle_context = {"region": region}
+	Game.battle_origin = {"px": kid.x, "py": kid.y}
+	Game.scene_change_to("battle")
 
 func _target_cam() -> Vector2:
 	var cam_x: float = clamp(kid.x + kid.w / 2.0 - HUD_W / 2.0, 0.0, float(MAP_W * TILE - HUD_W))
