@@ -2,7 +2,18 @@
 
 > Planning doc, not code. This is the "how we build" companion to CONCEPT.md.
 
-## Stack (recommendation)
+## Stack (as of the Godot rebuild)
+
+- **Godot 4.7** (GDScript), top-down overworld.
+- Viewport: 320×176 logical, stretched with crisp pixel canvas (`canvas_items`).
+- World: procedural 72×52 tile map (`scripts/world_map.gd`), port of the browser prototype.
+- Persistence: versioned JSON save in `user://fallout_rockies.save.json` (`scripts/save.gd`).
+- Scene swap: root holder in `scenes/Main.tscn` + autoload `Game` (`scripts/game.gd`).
+
+> **Superseded:** the browser-canvas / plain-JS plan below is kept for history.
+> It is archived in `archive/js-canvas/`. Do not build on it.
+
+## Stack (historical — browser prototype)
 
 - **HTML5 + Canvas + JavaScript** (plain JS to start; TypeScript optional later).
   No engine, no install, no dependencies. Both of you can open the game locally

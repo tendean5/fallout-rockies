@@ -1,37 +1,48 @@
 # Fallout Rockies
 
-An original, Colorado-specific, *Fallout*-inspired roguelike. Pixel art, low-res canvas,
-no dependencies, runs in a browser.
+Fallout-*inspired* Colorado wasteland overworld — Godot 4. An original game,
+not a clone of any Bethesda IP.
 
-**Planning:** see [CONCEPT.md](CONCEPT.md) (the world) and [BUILD.md](BUILD.md) (the plan).
+Current state: the core loop is in place — title menu → childhood bunker
+prologue → top-down overworld with kid movement, Platte River drowning,
+checkpoints, death → reset-to-checkpoint, and a versioned save file.
 
-## How to run
-
-No build step. Serve the folder and open it in a browser:
-
-```sh
-cd fallout-rockies
-python3 -m http.server 8000
-# then open http://localhost:8000
-```
-
-Any static file server works — the game only needs `index.html` + `src/`.
+The JS/canvas prototype (superseded) lives in `archive/js-canvas/`.
 
 ## Controls
 
-Arrows / WASD — move (a quick tap also moves the kid)
-Escape — back to menu
+- **Arrow keys / WASD** — move (tap for one nudge, hold to walk)
+- **Enter / Space** — confirm menu selection
+- **Escape** — back to title
+- **Mouse** — hover/click the menu buttons
 
-On the title screen choose **New Game** or **Load**. New Game clears past saves;
-Load resumes from the last save.
+## Run it
 
-On the title screen choose **New Game** or **Load**. New Game clears past saves;
-Load resumes from the last save.
+Open `fallout-rockies/` in Godot 4 (any recent stable), press **F5**.
 
-You walk an overworld (Denver sprawl, Platte River, the pass through the peaks).
-Walk into the river and you drown in ~1.5s — death returns you to the last safe
-tile.
+The title screen starts a new game through the bunker prologue; the bunker
+auto-saves the kid (age 13) and drops them into the overworld at the
+airport. Deaths reset to the last safe checkpoint with carry-forward state
+(age, artifact, deaths) intact; the save lives in `user://fallout_rockies.save.json`.
 
-The childhood slice plays once first (bunkers, fall, survive), then the game
-jumps to the overworld. Carry-forwards (locket, flags, age, deaths, checkpoint)
-persist in `localStorage` under `fallout-rockies.save.v1`.
+## Smoke test (automated)
+
+With Godot's binary available:
+
+```sh
+godot --headless --path . -- --smoke
+```
+
+Walks the full flow headlessly — title → bunkers → overworld → movement +
+checkpoint save → water drowning death → reset — and prints a PASS/FAIL
+summary. Exit code = number of failures (0 = pass).
+
+## Layout
+
+- `project.godot` — engine config (320×176 logical viewport, canvas_items stretch)
+- `scenes/Main.tscn` — root scene (holder + scene swap)
+- `scripts/game.gd` — autoload: carry state, scene switching, smoke mode
+- `scripts/save.gd` — versioned JSON save in `user://`
+- `scripts/world_map.gd` — procedural map (72×52), regions, palette
+- `scripts/main.gd` · `scripts/title.gd` · `scripts/bunkers.gd` · `scripts/overworld.gd` · `scripts/kid.gd`
+- `archive/js-canvas/` — the old browser version (reference only)
