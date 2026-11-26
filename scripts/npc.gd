@@ -4,8 +4,8 @@ const TEX_MUMMA = preload("res://assets/sprites/sprites/mumma.png")
 const TEX_PAP = preload("res://assets/sprites/sprites/pap.png")
 const TEX_GUARD = preload("res://assets/sprites/sprites/guard.png")
 
-const SPRITE_W := 11
-const SPRITE_H := 13
+const SPRITE_W := 20
+const SPRITE_H := 28
 
 static var _filters_set := false
 static var _flipped: Dictionary = {}

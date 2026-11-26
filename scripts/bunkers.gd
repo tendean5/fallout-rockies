@@ -1,32 +1,62 @@
-# Childhood prologue — the Enclave bunker, walked like a childhood town.
-# Side-view platform corridor built from loom-generated seamless textures,
-# pxl-generated sprites (kid + childhood cast + torch), chirp-generated audio.
+# Childhood prologue — the Enclave bunker, top-down 2D room layout.
+# (cafeteria → family quarters → unnamed NPC quarters → guarded area → surface)
+# Built from loom-generated seamless textures, pxl-generated sprites (20x28),
+# chirp-generated audio. Free 2D movement with tile collision.
 extends Node2D
 
-const WorldMap = preload("res://scripts/world_map.gd")
 const Kid = preload("res://scripts/kid.gd")
 const KidState = preload("res://scripts/kid_state.gd")
 const NPC = preload("res://scripts/npc.gd")
 const WALL_TEX = preload("res://assets/textures/bunker_wall/bunker_wall_albedo.png")
 const FLOOR_TEX = preload("res://assets/textures/bunker_floor/bunker_floor_albedo.png")
-const PILLAR_TEX = preload("res://assets/textures/bunker_pillar/bunker_pillar_albedo.png")
 const FLAME_TEX = preload("res://assets/sprites/anims/flame.png")
-const BRACKET_TEX = preload("res://assets/sprites/sprites/torch_bracket.png")
 
-const TILE := WorldMap.TILE
-const W := 40
-const H := 11
-const WALK := 3.1
+const TILE := 16
+const W := 44
+const H := 28
+const WALK := 3.4
 const VIEW_W := 320
 const VIEW_H := 176
 
-const MEMORY_LINES := [
-	"I was a kid in the Enclave. The way out is to the right.",
-	"Everyone here was a memory by the end.",
-	"The way out is to the right — and the surface is far.",
+const MEMORY_LINES := {
+	"cafeteria": "I was a kid in the Enclave. The way out is to the right.",
+	"quarters": "Everyone here was a memory by the end.",
+	"guarded": "The way out is to the right — and the surface is far.",
+}
+
+# furniture solid props — type: table|bed|chest|nightstand|locker|crate|barrel|barrier
+const FURNITURE: Array = [
+	{"type": "table", "x": 5, "y": 13, "w": 3, "h": 2},
+	{"type": "table", "x": 12, "y": 17, "w": 3, "h": 2},
+	{"type": "table", "x": 20, "y": 13, "w": 3, "h": 2},
+	{"type": "bed", "x": 2, "y": 2, "w": 4, "h": 3},
+	{"type": "chest", "x": 18, "y": 2, "w": 2, "h": 2},
+	{"type": "nightstand", "x": 14, "y": 6, "w": 2, "h": 2},
+	{"type": "bed", "x": 25, "y": 2, "w": 4, "h": 3},
+	{"type": "bed", "x": 31, "y": 2, "w": 4, "h": 3},
+	{"type": "locker", "x": 40, "y": 2, "w": 2, "h": 2},
+	{"type": "table", "x": 29, "y": 6, "w": 2, "h": 2},
+	{"type": "crate", "x": 33, "y": 12, "w": 2, "h": 2},
+	{"type": "crate", "x": 37, "y": 12, "w": 2, "h": 2},
+	{"type": "barrel", "x": 36, "y": 23, "w": 2, "h": 2},
+	{"type": "barrier", "x": 41, "y": 11, "w": 2, "h": 3},
+	{"type": "barrier", "x": 41, "y": 18, "w": 2, "h": 8},
 ]
 
-var map: Array = []
+# torches: side "south" = wall face hangs into cafeteria/guarded floor,
+# side "north" = wall face hangs into a north-room
+const TORCHES: Array = [
+	{"x": 5, "y": 10, "side": "south"},
+	{"x": 14, "y": 10, "side": "south"},
+	{"x": 24, "y": 10, "side": "south"},
+	{"x": 10, "y": 27, "side": "north"},
+	{"x": 22, "y": 27, "side": "north"},
+	{"x": 12, "y": 10, "side": "north"},
+	{"x": 35, "y": 10, "side": "north"},
+	{"x": 33, "y": 10, "side": "south"},
+	{"x": 39, "y": 10, "side": "south"},
+]
+
 var kid := KidState.new()
 var time := 0.0
 var fade := 1.0
@@ -38,6 +68,7 @@ var _moving := false
 var _walk_phase := 0.0
 var _cam := Vector2(0, 0)
 var _step_pitch := 0.0
+var _room := "cafeteria"
 
 var _npcs: Array[Dictionary] = []
 var _talk_index := -1
@@ -46,23 +77,21 @@ var _done_npcs: Array = []
 
 static var _flame_frames: Array = []
 static var _filters_set := false
-
 static var _tile_tex: Dictionary = {}
+static var _furn_solid: Dictionary = {}
 
 func _ensure_textures() -> void:
 	if _filters_set:
 		return
 	_filters_set = true
-
-	# pre-downscale loom albedo textures to tile size once (crisp + cheap)
-	for tex in [WALL_TEX, FLOOR_TEX, PILLAR_TEX]:
+	for tex in [WALL_TEX, FLOOR_TEX]:
 		if tex == null:
 			continue
 		var img: Image = tex.get_image()
 		if img == null:
 			continue
-		var iw: int = img.get_width()
-		var ih: int = img.get_height()
+		var iw := img.get_width()
+		var ih := img.get_height()
 		var tiled := Image.create(TILE, TILE, false, Image.FORMAT_RGBA8)
 		for y in TILE:
 			for x in TILE:
@@ -72,45 +101,51 @@ func _ensure_textures() -> void:
 		_tile_tex[tex.resource_path] = ImageTexture.create_from_image(tiled)
 
 	if _flame_frames.is_empty():
-		var img: Image = FLAME_TEX.get_image()
-		if img != null:
+		var imgf: Image = FLAME_TEX.get_image()
+		if imgf != null:
 			for i in 6:
-				var region := img.get_region(Rect2i(i * 9, 0, 9, 12))
-				var t := ImageTexture.create_from_image(region)
-				_flame_frames.append(t)
+				var region := imgf.get_region(Rect2i(i * 9, 0, 9, 12))
+				_flame_frames.append(ImageTexture.create_from_image(region))
+
+func _ensure_furn_solid() -> void:
+	if _furn_solid.is_empty():
+		for f in FURNITURE:
+			for fy in range(int(f["y"]), int(f["y"]) + int(f["h"])):
+				for fx in range(int(f["x"]), int(f["x"]) + int(f["w"])):
+					_furn_solid[str(fx) + "," + str(fy)] = true
 
 func _ready() -> void:
 	_ensure_textures()
-	map = _make_map()
-	kid.x = 3 * TILE
-	kid.y = (H - 1) * TILE - 13
-	kid.w = 11
-	kid.h = 13
+	_ensure_furn_solid()
+	kid.x = 2 * TILE
+	kid.y = 12 * TILE
+	kid.w = 20
+	kid.h = 28
 	kid.face = 1
 	fade = 1.0
 	_cam = _target_cam()
 	_step_pitch = 0.0
 	_npcs = [
-		{"x": 7 * TILE, "kind": "kid", "name": "Perry", "lines": [
-			"Perry: You still got the locket?",
-			"Perry: Our secret. Never tell on us!",
-			"Perry: ...I need to study for my lines.",
+		{"feet": Vector2(9.5 * TILE, 12 * TILE), "kind": "kid", "name": "Perry", "lines": [
+			"You still got the locket?",
+			"Our secret. Never tell on us!",
+			"...I need to study for my lines.",
 		]},
-		{"x": 14 * TILE, "kind": "mother", "name": "Mumma", "lines": [
-			"Mumma: You're supposed to stay home.",
-			"Mumma: The locket is yours. Bring it back.",
-			"Mumma: Don't be like — oh my. You're not a kid.",
+		{"feet": Vector2(8 * TILE, 5.5 * TILE), "kind": "mother", "name": "Mumma", "lines": [
+			"You're supposed to stay home.",
+			"The locket is yours. Bring it back.",
+			"Don't be like — oh my. You're not a kid.",
 		]},
-		{"x": 17 * TILE, "kind": "father", "name": "Pap", "lines": [
-			"Pap: The Enclave lives in the dark. By night.",
-			"Pap: Don't come looking for it in the bunkers.",
-			"Pap: Wherever you go, remember the path home.",
+		{"feet": Vector2(17 * TILE, 5.5 * TILE), "kind": "father", "name": "Pap", "lines": [
+			"The Enclave lives in the dark. By night.",
+			"Don't come looking for it in the bunkers.",
+			"Wherever you go, remember the path home.",
 		]},
-		{"x": 28 * TILE, "kind": "guard", "name": "Enclave guard", "lines": [
-			"Guard: Who are you?",
-			"Guard: ...you came back for something?",
-			"Guard: The last thing that crosses before dawn...",
-			"Guard: Leave the way you came. Leave now.",
+		{"feet": Vector2(39 * TILE, 15.8 * TILE), "kind": "guard", "name": "Enclave guard", "lines": [
+			"Who are you?",
+			"...you came back for something?",
+			"The last thing that crosses before dawn...",
+			"Leave the way you came. Leave now.",
 		]},
 	]
 	Audio.start_loop("ambience")
@@ -123,62 +158,101 @@ func debug_advance_dialogue() -> void:
 	_advance_dialogue()
 
 func debug_state() -> String:
-	var out := "kid.x=%.1f kid.y=%.1f cam=%.1f talk=%d done=%s" % [kid.x, kid.y, _cam.x, _talk_index, str(_done_npcs)]
+	var out := "kid.x=%.1f kid.y=%.1f cam=(%.1f,%.1f) talk=%d done=%s | room=%s" % [kid.x, kid.y, _cam.x, _cam.y, _talk_index, str(_done_npcs), _room]
 	for i in _npcs.size():
 		var n: Dictionary = _npcs[i]
-		out += " | npc%d %s x=%d nx=%.1f" % [i, n["kind"], int(n["x"]), float(n["x"]) - _cam.x]
+		var d: Vector2 = n["feet"]
+		out += " | npc%d %s d=(%.0f,%.0f)" % [i, n["kind"], d.x, d.y]
 	return out
 
 func debug_scene_name() -> String:
 	return "bunkers"
 
 func debug_teleport_to_end() -> void:
-	kid.x = (W - 2) * TILE
+	kid.x = 41.8 * TILE
+	kid.y = 15 * TILE - 14
+
+func room_of(px: float, py: float) -> String:
+	if py < 9.5 * TILE:
+		return "quarters"
+	if px < 30.5 * TILE:
+		return "cafeteria"
+	return "guarded"
 
 func _make_map() -> Array:
 	var m: Array = []
 	for y in H:
 		var row: Array = []
 		for x in W:
-			row.append(" ")
+			row.append("#")
 		m.append(row)
-	for x in W:
-		m[0][x] = "#"
-		m[H - 1][x] = "#"
-	for y in H:
-		m[y][0] = "#"
-		m[y][W - 1] = "#"
-	m[5][8] = "#"; m[6][8] = "#"
-	m[4][13] = "#"; m[5][13] = "#"
+	_carve(m, 1, 1, 21, 9)
+	_carve(m, 23, 1, 42, 9)
+	_carve(m, 1, 11, 29, 26)
+	_carve(m, 31, 11, 42, 26)
+	# doors
+	m[10][7] = " "; m[10][8] = " "
+	m[10][32] = " "; m[10][33] = " "
+	m[15][30] = " "; m[16][30] = " "; m[17][30] = " "
 	return m
 
+func _carve(m: Array, x0: int, y0: int, x1: int, y1: int) -> void:
+	for ty in range(y0, y1 + 1):
+		for tx in range(x0, x1 + 1):
+			m[ty][tx] = " "
+
+var map: Array = []
 func _is_solid(tx: int, ty: int) -> bool:
 	if tx < 0 or ty < 0 or tx >= W or ty >= H:
 		return true
-	return map[ty][tx] == "#"
+	if map[ty][tx] == "#":
+		return true
+	if _furn_solid.has(str(tx) + "," + str(ty)):
+		return true
+	return false
 
-func _memory_line_index() -> int:
-	var x := kid.x
-	if x < 7 * TILE:
-		return 0
-	elif x < 24 * TILE:
-		return 1
-	return 2
+func _memory_line_index() -> String:
+	return _room
 
 func _near_npc_index() -> int:
-	var kid_cx := kid.x + kid.w / 2.0
+	var kx := kid.x + kid.w / 2.0
+	var ky := kid.y + kid.h / 2.0
 	for i in _npcs.size():
 		if i in _done_npcs:
 			continue
-		var n := _npcs[i]
-		if abs(kid_cx - float(n["x"])) < 26.0:
+		var d: Vector2 = _npcs[i]["feet"]
+		var dist := Vector2(kx, ky).distance_to(Vector2(d.x, d.y - 14))
+		if dist < 26.0:
 			return i
 	return -1
+
+var map_built := false
+func _map() -> Array:
+	if not map_built:
+		map = _make_map()
+		map_built = true
+	return map
 
 func _physics_process(delta: float) -> void:
 	time += delta
 	if fade > 0.0:
 		fade = max(0.0, fade - delta * 2.0)
+	_map()
+	if int(time * 20.0) % 3 == 0:
+		var kc := int((kid.x + kid.w / 2.0) / TILE)
+		var kr := int((kid.y + kid.h / 2.0) / TILE)
+		var dbg := ""
+		for dy in range(-1, 3):
+			var sr := ""
+			for dx in range(-2, 4):
+				var tx2 := kc + dx
+				var ty2 := kr + dy
+				var ch2 := "?"
+				if tx2 >= 0 and ty2 >= 0 and tx2 < W and ty2 < H:
+					ch2 = "#" if map[ty2][tx2] == "#" else ("F" if _furn_solid.has(str(tx2) + "," + str(ty2)) else ".")
+				sr += ch2
+			dbg += sr + "\n"
+		print("KIDMAP: kid=(", kid.x, ",", kid.y, ")\n", dbg)
 
 	if _just_key(KEY_ESCAPE):
 		Game.scene_change_to("title")
@@ -189,7 +263,8 @@ func _physics_process(delta: float) -> void:
 		if _talk_index != near:
 			_talk_index = near
 			_talk_line = 0
-			kid.face = 1 if float(_npcs[near]["x"]) > kid.x + kid.w / 2.0 else -1
+			var d: Vector2 = _npcs[near]["feet"]
+			kid.face = 1 if d.x > kid.x + kid.w / 2.0 else -1
 			Audio.play_sfx("dialogue_blip", 0.6)
 	else:
 		if _talk_index != -1:
@@ -200,44 +275,63 @@ func _physics_process(delta: float) -> void:
 	if talking and (_just_key(KEY_ENTER) or _just_key(KEY_SPACE) or _just_key(KEY_E)):
 		_advance_dialogue()
 
-	if not talking:
-		if _just_key(KEY_RIGHT) or _just_key(KEY_D):
-			kid.x += 3.2
+	if not talking and not surface:
+		# tap assist
 		if _just_key(KEY_LEFT) or _just_key(KEY_A):
 			kid.x -= 3.2
+		if _just_key(KEY_RIGHT) or _just_key(KEY_D):
+			kid.x += 3.2
+		if _just_key(KEY_UP) or _just_key(KEY_W):
+			kid.y -= 3.2
+		if _just_key(KEY_DOWN) or _just_key(KEY_S):
+			kid.y += 3.2
 
-	var left := Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A) or Game.virtual_left
-	var right := Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D) or Game.virtual_right
-	var vx := 0.0
-	if left:
-		vx = -WALK
-		kid.face = -1
-	if right:
-		vx = WALK
-		kid.face = 1
+		var left := Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A) or Game.virtual_left
+		var right := Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D) or Game.virtual_right
+		var up := Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W) or Game.virtual_up
+		var down := Input.is_physical_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_S) or Game.virtual_down
 
-	if talking:
-		var n: Dictionary = _npcs[_talk_index]
-		if kid.x + kid.w > float(n["x"]) - 10.0:
-			kid.x = float(n["x"]) - 10.0 - kid.w
-		vx = 0.0
+		var vx := 0.0
+		var vy := 0.0
+		if left:
+			vx = -WALK
+			kid.face = -1
+		if right:
+			vx = WALK
+			kid.face = 1
+		if up: vy = -WALK
+		if down: vy = WALK
 
-	_moving = (vx != 0.0)
-	if _moving:
-		_walk_phase += delta * 11.0
-		if _walk_phase - _step_pitch >= 0.55:
-			_step_pitch = _walk_phase
-			Audio.play_sfx("walk_step", 0.35)
-	kid.x += vx * TILE * delta
-	_resolve_x()
+		_moving = (vx != 0.0 or vy != 0.0)
+		if _moving:
+			_walk_phase += delta * 11.0
+			if _walk_phase - _step_pitch >= 0.55:
+				_step_pitch = _walk_phase
+				Audio.play_sfx("walk_step", 0.35)
+
+		kid.x += vx * TILE * delta
+		kid.y += vy * TILE * delta
+		_resolve_collisions()
+		_resolve_npc()
+		kid.x = clamp(kid.x, 0.0, float(W * TILE - kid.w))
+		kid.y = clamp(kid.y, 0.0, float(H * TILE - kid.h))
+	else:
+		_moving = false
+
+	# room detection + surface trigger
+	var kx := kid.x + kid.w / 2.0
+	var ky := kid.y + kid.h / 2.0
+	_room = room_of(kx, ky)
+	if not surface and kx > 41.5 * TILE and kid.y + kid.h > 13.8 * TILE and kid.y + kid.h < 18.4 * TILE:
+		surface = true
+		surface_fade = 0.0
+	if surface:
+		surface_fade = min(1.0, surface_fade + delta * 0.9)
+		if surface_fade >= 1.0:
+			_finish()
 
 	_cam = _cam.lerp(_target_cam(), min(1.0, delta * 12.0))
 
-	if kid.x > (W - 3) * TILE:
-		surface = true
-		surface_fade = min(1.0, surface_fade + delta * 0.8)
-		if surface_fade >= 1.0:
-			_finish()
 	queue_redraw()
 
 func _advance_dialogue() -> void:
@@ -251,10 +345,37 @@ func _advance_dialogue() -> void:
 		_talk_line = 0
 
 func _target_cam() -> Vector2:
-	var cam_x: float = clamp(kid.x - VIEW_W / 2.0, 0.0, float(W * TILE - VIEW_W))
-	return Vector2(cam_x, 0.0)
+	var cam_x: float = clamp(kid.x + kid.w / 2.0 - VIEW_W / 2.0, 0.0, float(W * TILE - VIEW_W))
+	var cam_y: float = clamp(kid.y + kid.h / 2.0 - VIEW_H / 2.0, 0.0, float(H * TILE - VIEW_H))
+	return Vector2(cam_x, cam_y)
 
-func _resolve_x() -> void:
+func _resolve_collisions() -> void:
+	var resolved := _resolve_x()
+	if resolved:
+		_resolve_y()
+
+func _resolve_x() -> bool:
+	var k = kid
+	var x0 := int(k.x / TILE)
+	var x1 := int((k.x + k.w) / TILE)
+	var y0 := int(k.y / TILE)
+	var y1 := int((k.y + k.h) / TILE)
+	var hit := false
+	for ty in range(y0, y1 + 1):
+		for tx in range(x0, x1 + 1):
+			if not _is_solid(tx, ty):
+				continue
+			var left_edge := tx * TILE
+			var right_edge := (tx + 1) * TILE
+			var mid_x: float = k.x + k.w / 2.0
+			if mid_x < (left_edge + right_edge) / 2.0:
+				k.x = left_edge - k.w
+			else:
+				k.x = right_edge
+			hit = true
+	return hit
+
+func _resolve_y() -> void:
 	var k = kid
 	var x0 := int(k.x / TILE)
 	var x1 := int((k.x + k.w) / TILE)
@@ -264,10 +385,27 @@ func _resolve_x() -> void:
 		for tx in range(x0, x1 + 1):
 			if not _is_solid(tx, ty):
 				continue
-			if k.x + k.w > tx * TILE and k.x < tx * TILE:
-				k.x = tx * TILE - k.w
-			elif k.x < (tx + 1) * TILE and k.x + k.w > (tx + 1) * TILE:
-				k.x = (tx + 1) * TILE
+			var top_edge := ty * TILE
+			var bottom_edge := (ty + 1) * TILE
+			var mid_y: float = k.y + k.h / 2.0
+			if mid_y < (top_edge + bottom_edge) / 2.0:
+				k.y = top_edge - k.h
+			else:
+				k.y = bottom_edge
+
+func _resolve_npc() -> void:
+	var kx := kid.x + kid.w / 2.0
+	var ky := kid.y + kid.h / 2.0
+	for n in _npcs:
+		var d: Vector2 = n["feet"]
+		var dx: float = kx - d.x
+		var dy: float = ky - (d.y - 14)
+		var dist := sqrt(dx * dx + dy * dy)
+		var min_dist := 16.0
+		if dist < min_dist and dist > 0.001:
+			var push := (min_dist - dist) / dist
+			kid.x += dx * push
+			kid.y += dy * push
 
 func _finish() -> void:
 	if _finished:
@@ -278,154 +416,267 @@ func _finish() -> void:
 	Game.save_game()
 	Game.scene_change_to("overworld")
 
+func _hash(x: int, y: int) -> int:
+	var n := x * 374761393 + y * 668265263
+	n = (n ^ (n >> 13)) * 1274126177
+	return (n ^ (n >> 16)) & 0x7fffffff
+
+func _just_key(code: int) -> bool:
+	var cur := Input.is_physical_key_pressed(code)
+	var fresh: bool = cur and not bool(_prev_keys.get(code, false))
+	_prev_keys[code] = cur
+	return fresh
+
 func _draw() -> void:
 	var cam_x := _cam.x
+	var cam_y := _cam.y
+	var m := _map()
 
 	draw_rect(Rect2(0, 0, VIEW_W, VIEW_H), Color("#0d0906"))
 
-	# interior void tiles -> dark wall texture (corridor room), pillars get pillar texture
-	for ty in range(1, H - 1):
-		for tx in range(1, W - 1):
-			var px: float = float(tx * TILE) - cam_x
-			if px < -TILE or px > VIEW_W:
-				continue
-			var py := ty * TILE
-			var tiled: Texture2D = _tile_tex.get(WALL_TEX.resource_path, null)
-			if tiled != null:
-				draw_texture_rect(tiled, Rect2(px, py, TILE, TILE), false, Color(0.68, 0.62, 0.55, 1.0))
+	var tx0: int = max(0, int(cam_x / TILE) - 1)
+	var ty0: int = max(0, int(cam_y / TILE) - 1)
+	var tx1: int = min(W - 1, int((cam_x + VIEW_W) / TILE) + 1)
+	var ty1: int = min(H - 1, int((cam_y + VIEW_H) / TILE) + 1)
 
-	# textured walls / floor / pillars (only the stripe on screen)
-	for ty in H:
-		for tx in W:
-			if map[ty][tx] == " ":
-				continue
-			var px: float = float(tx * TILE) - cam_x
-			if px < -TILE or px > VIEW_W:
-				continue
-			var py := ty * TILE
-			var tex: Texture2D = null
-			if ty == 0:
-				tex = WALL_TEX
-			elif ty == H - 1:
-				tex = FLOOR_TEX
-			else:
-				tex = PILLAR_TEX
-			var tiled: Texture2D = _tile_tex.get(tex.resource_path, null) if tex != null else null
-			draw_rect(Rect2(px, py, TILE, TILE), Color("#0e0906"))
-			if tiled != null:
-				draw_texture_rect(tiled, Rect2(px, py, TILE, TILE), false)
-			# darken the far edge of the top row / near edge of the floor — depth cue
-			if ty == 0:
-				draw_rect(Rect2(px, py, TILE, 3), Color(0, 0, 0, 0.45))
-				draw_rect(Rect2(px, py + TILE - 1, TILE, 1), Color(0, 0, 0, 0.35))
-			elif ty == H - 1:
-				draw_rect(Rect2(px, py, TILE, 2), Color(0.35, 0.26, 0.13, 0.35))
-				draw_rect(Rect2(px, py + TILE - 1, TILE, 1), Color(0, 0, 0, 0.5))
-			else:
-				draw_rect(Rect2(px, py, TILE, 2), Color(0, 0, 0, 0.5))
-				draw_rect(Rect2(px, py + TILE - 2, TILE, 2), Color(0, 0, 0, 0.5))
+	var floor_tex: Texture2D = _tile_tex.get(FLOOR_TEX.resource_path, null)
+	var wall_tex: Texture2D = _tile_tex.get(WALL_TEX.resource_path, null)
 
-	# torches — wall sconces with a generated flame anim, warm glow
-	for i in range(4):
-		var tx := 6 + i * 7
-		var px: float = float(tx * TILE + 6) - cam_x
+	# floor (interior) tiles
+	for ty in range(ty0, ty1 + 1):
+		for tx in range(tx0, tx1 + 1):
+			if m[ty][tx] == "#":
+				continue
+			var px := float(tx * TILE) - cam_x
+			var py := float(ty * TILE) - cam_y
+			if px < -TILE or px > VIEW_W or py < -TILE or py > VIEW_H:
+				continue
+			if floor_tex != null:
+				draw_texture_rect(floor_tex, Rect2(px, py, TILE, TILE), false, Color(0.95, 0.88, 0.76, 1.0))
+			else:
+				draw_rect(Rect2(px, py, TILE, TILE), Color("#221a10"))
+
+	# walls (solid) + speckles
+	for ty in range(ty0, ty1 + 1):
+		for tx in range(tx0, tx1 + 1):
+			if m[ty][tx] != "#":
+				continue
+			var px := float(tx * TILE) - cam_x
+			var py := float(ty * TILE) - cam_y
+			if px < -TILE or px > VIEW_W or py < -TILE or py > VIEW_H:
+				continue
+			if wall_tex != null:
+				draw_texture_rect(wall_tex, Rect2(px, py, TILE, TILE), false)
+			else:
+				draw_rect(Rect2(px, py, TILE, TILE), Color("#2b1e12"))
+			# depth cue: darken far edge of top-floor-row / near edge of wall
+			draw_rect(Rect2(px, py + TILE - 2, TILE, 2), Color(0, 0, 0, 0.45))
+
+	_speckle_floors(cam_x, cam_y, ty0, ty1, tx0, tx1)
+	_draw_furniture(cam_x, cam_y)
+	_draw_exit_gate(cam_x, cam_y)
+	_draw_torches(cam_x, cam_y)
+
+	# shadows + NPCs + kid
+	for n in _npcs:
+		var d: Vector2 = n["feet"]
+		var px: float = d.x - cam_x
+		var py: float = d.y - cam_y
 		if px < -40 or px > VIEW_W + 40:
 			continue
-		var flicker: float = sin(time * 9.0 + i * 2.2) * 1.5
-		draw_circle(Vector2(px + 2, 16), 42 + flicker, Color(0.85, 0.35, 0.10, 0.16))
-		draw_circle(Vector2(px + 2, 16), 20 + flicker * 0.6, Color(0.95, 0.45, 0.12, 0.24))
-		draw_texture_rect(BRACKET_TEX, Rect2(px - 2, 12, 9, 7), false)
-		var fi := int(time * 10.0 + i * 1.7) % _flame_frames.size()
-		if fi >= 0 and fi < _flame_frames.size():
-			draw_texture_rect(_flame_frames[fi], Rect2(px - 1, 2, 9, 12), false)
+		fill_ellipse(px, py - 4, 10, 4, Color(0, 0, 0, 0.35))
+	var kid_px := kid.x - cam_x
+	var kid_py := kid.y - cam_y
+	fill_ellipse(kid_px + kid.w / 2.0, kid_py + kid.h - 3, 10, 4, Color(0, 0, 0, 0.35))
 
-	# speckle/grime dither over solid tiles — the Fallout 1 grain
-	_speckle_tiles(cam_x)
-
-	# NPCs — childhood cast, same walk-right layout
 	for n in _npcs:
-		var nx: float = float(n["x"]) - cam_x
-		if nx < -40 or nx > VIEW_W + 40:
+		var d: Vector2 = n["feet"]
+		var px: float = d.x - cam_x
+		var py: float = d.y - cam_y
+		if px < -40 or px > VIEW_W + 40:
 			continue
-		var sway := int(round(sin(time * 2.0 + float(n["x"])) * 1.0))
-		var face := 1 if kid.x + kid.w / 2.0 > float(n["x"]) else -1
-		NPC.draw(self, nx - 5.5, kid.y, face, n["kind"], sway)
+		var sway := int(round(sin(time * 2.0 + d.x * 0.13)))
+		var kx := kid.x + kid.w / 2.0
+		var npc_face := 1 if kx > d.x else -1
+		NPC.draw(self, px - 10.0, py - 28.0, npc_face, str(n["kind"]), sway)
 
-	# kid (locket baked into the sprite)
 	var bob := 0
 	var step := -1
 	if _moving:
 		bob = int(round(sin(_walk_phase) * 1.0))
 		step = int(_walk_phase / PI) % 2
-	Kid.draw(self, kid.x - cam_x, kid.y, kid.face, bob, step)
+	Kid.draw(self, kid_px, kid_py, kid.face, bob, step)
 
-	# childhood memory band — only when no NPC is talking
+	# memory band — only when no NPC is talking
 	if _talk_index < 0 and not surface:
 		draw_rect(Rect2(0, VIEW_H - 15, VIEW_W, 15), Color("#140f0a"))
 		draw_rect(Rect2(0, VIEW_H - 15, VIEW_W, 1), Color("#362718"))
-		draw_centered(MEMORY_LINES[_memory_line_index()], VIEW_W / 2, VIEW_H - 4, 7, Color("#c9b088"))
+		draw_centered(MEMORY_LINES[_room], VIEW_W / 2.0, VIEW_H - 4, 7, Color("#c9b088"))
 
-	# speech bubble over the speaking NPC
+	# speech bubble above the speaking NPC
 	if _talk_index >= 0:
 		var n: Dictionary = _npcs[_talk_index]
-		var name: String = str(n["name"])
-		var text: String = str(n["lines"][_talk_line])
-		_draw_bubble(float(n["x"]) - cam_x, kid.y, name, text)
+		var d: Vector2 = n["feet"]
+		_draw_bubble(d.x - cam_x, d.y - cam_y, str(n["name"]), str(n["lines"][_talk_line]))
 
 	# age HUD — top left
 	draw_left("AGE 6", 6, 11, 7, Color("#9a8352"))
 
 	if surface:
-		draw_centered("you fall, wake at the surface...", VIEW_W / 2, VIEW_H / 2 - 6, 9, Color("#c99a44"))
+		draw_centered("you fall, wake at the surface...", VIEW_W / 2.0, VIEW_H / 2.0 - 6, 9, Color("#c99a44"))
+
+	# vignette — dark edges, Fallout mood
+	draw_rect(Rect2(0, 0, VIEW_W, 6), Color(0, 0, 0, 0.35))
+	draw_rect(Rect2(0, VIEW_H - 6, VIEW_W, 6), Color(0, 0, 0, 0.35))
+	draw_rect(Rect2(0, 0, 6, VIEW_H), Color(0, 0, 0, 0.30))
+	draw_rect(Rect2(VIEW_W - 6, 0, 6, VIEW_H), Color(0, 0, 0, 0.30))
 
 	if fade > 0.0:
 		draw_rect(Rect2(0, 0, VIEW_W, VIEW_H), Color(0.023, 0.015, 0.007, fade))
 	if surface_fade > 0.0:
 		draw_rect(Rect2(0, 0, VIEW_W, VIEW_H), Color(0.023, 0.015, 0.007, surface_fade))
 
-func _hash(x: int, y: int) -> int:
-	var n := x * 374761393 + y * 668265263
-	n = (n ^ (n >> 13)) * 1274126177
-	return (n ^ (n >> 16)) & 0x7fffffff
+func _draw_furniture(cam_x: float, cam_y: float) -> void:
+	for f in FURNITURE:
+		var px := float(f["x"]) * TILE - cam_x
+		var py := float(f["y"]) * TILE - cam_y
+		var pw := float(f["w"]) * TILE
+		var ph := float(f["h"]) * TILE
+		if px + pw < 0 or px > VIEW_W or py + ph < 0 or py > VIEW_H:
+			continue
+		var t: String = str(f["type"])
+		match t:
+			"table":
+				draw_rect(Rect2(px, py, pw, ph), Color("#4a2f1a"))
+				draw_rect(Rect2(px, py, pw, 2), Color("#6b4f2e"))
+				draw_rect(Rect2(px, py + ph - 2, pw, 2), Color("#241407"))
+				draw_rect(Rect2(px, py, 2, ph), Color("#241407"))
+				draw_rect(Rect2(px + pw - 2, py, 2, ph), Color("#241407"))
+				draw_rect(Rect2(px + 2, py + ph / 2.0 - 1, pw - 4, 2), Color("#3a2410"))
+				# mug speck
+				draw_rect(Rect2(px + pw / 2.0 - 2, py + 3, 4, 3), Color("#8a6a24"))
+			"bed":
+				draw_rect(Rect2(px, py, pw, ph), Color("#33241a"))
+				draw_rect(Rect2(px, py, pw, 2), Color("#4d3826"))
+				draw_rect(Rect2(px + 2, py + 3, pw - 4, ph - 6), Color("#3a4132"))
+				draw_rect(Rect2(px + 2, py + 4, pw - 4, 2), Color("#4a5540"))
+				draw_rect(Rect2(px + 3, py + 2, pw - 6, 4), Color("#a89a72"))
+			"chest":
+				draw_rect(Rect2(px, py, pw, ph), Color("#3a2614"))
+				draw_rect(Rect2(px, py, pw, 2), Color("#5c3f22"))
+				draw_rect(Rect2(px + 2, py + 2, pw - 4, ph - 4), Color("#2b1c0c"))
+				draw_rect(Rect2(px + pw / 2.0 - 2, py + ph / 2.0 - 2, 4, 4), Color("#c9a03a"))
+			"nightstand":
+				draw_rect(Rect2(px, py, pw, ph), Color("#2e2015"))
+				draw_rect(Rect2(px, py, pw, 2), Color("#483a24"))
+			"locker":
+				draw_rect(Rect2(px, py, pw, ph), Color("#2e3328"))
+				draw_rect(Rect2(px, py, pw, 2), Color("#4a5244"))
+				draw_rect(Rect2(px + 2, py + 1, pw - 4, 1), Color("#141a12"))
+				draw_rect(Rect2(px + 2, py + ph / 2.0, pw - 4, 1), Color("#141a12"))
+				draw_rect(Rect2(px + pw / 2.0 - 1, py + 4, 2, 6), Color("#77714a"))
+			"crate":
+				draw_rect(Rect2(px, py, pw, ph), Color("#33240f"))
+				draw_rect(Rect2(px, py, pw, 2), Color("#4e3720"))
+				draw_rect(Rect2(px + 2, py + 2, pw - 4, ph - 4), Color("#241a0c"))
+				draw_rect(Rect2(px + 3, py + 3, pw - 6, ph - 6), Color("#33241a"))
+			"barrel":
+				draw_rect(Rect2(px, py, pw, ph), Color("#3a2510"))
+				draw_rect(Rect2(px + 2, py, pw - 4, ph), Color("#4e3016"))
+				draw_rect(Rect2(px + 1, py + ph / 3.0 - 1, pw - 2, 2), Color("#1c1008"))
+				draw_rect(Rect2(px + 1, py + 2 * ph / 3.0 - 1, pw - 2, 2), Color("#1c1008"))
+			"barrier":
+				draw_rect(Rect2(px, py, pw, ph), Color("#1c1712"))
+				draw_rect(Rect2(px, py, pw, 2), Color("#33281c"))
+				draw_rect(Rect2(px, py + ph / 2.0 - 1, pw, 2), Color("#33281c"))
+				for i in range(int(f["w"])):
+					var lx := px + (i + 1) * TILE - 1
+					draw_rect(Rect2(lx, py, 2, ph), Color("#0e0a05"))
 
-func _speckle_tiles(cam_x: float) -> void:
-	for ty in H:
-		for tx in W:
-			if map[ty][tx] == " ":
+func _draw_exit_gate(cam_x: float, cam_y: float) -> void:
+	var px := float(43 * TILE) - cam_x
+	var py := float(14 * TILE) - cam_y
+	var rw := float(TILE)
+	var rh := float(4 * TILE)
+	if px + rw < 0 or px > VIEW_W:
+		return
+	# stone frame around the dark doorway
+	draw_rect(Rect2(px - 3, py - 3, rw + 6, rh + 6), Color("#1a130c"))
+	draw_rect(Rect2(px - 3, py - 3, rw + 6, 3), Color("#4d3826"))
+	draw_rect(Rect2(px - 3, py + rh, rw + 6, 3), Color("#4d3826"))
+	draw_rect(Rect2(px - 3, py - 3, 3, rh + 6), Color("#4d3826"))
+	draw_rect(Rect2(px + rw, py - 3, 3, rh + 6), Color("#4d3826"))
+	# dark opening + warm light glow from the threshold
+	draw_rect(Rect2(px, py, rw, rh), Color("#070503"))
+	draw_rect(Rect2(px + 1, py + 1, rw - 2, rh - 2), Color("#0d0a06"))
+	var flicker := sin(time * 6.0) * 0.5 + 0.5
+	draw_rect(Rect2(px + 1, py + 1, rw - 2, rh - 2), Color(0.95, 0.55, 0.14, 0.10 + flicker * 0.06))
+	draw_rect(Rect2(px + 1, py + 1, rw - 2, rh - 2), Color(0.55, 0.75, 0.45, 0.04))
+
+func _draw_torches(cam_x: float, cam_y: float) -> void:
+	for i in TORCHES.size():
+		var t: Dictionary = TORCHES[i]
+		var tx := int(t["x"])
+		var twow := tx * TILE + 3 - cam_x
+		var flicker := sin(time * 9.0 + i * 2.2) * 1.5
+		var glow_y := 0.0
+		var flame_y := 0.0
+		if str(t["side"]) == "south":
+			# sconce on the bottom edge of a north-facing wall, flame hanging down
+			glow_y = float(t["y"]) * TILE + TILE - 1 - cam_y
+			flame_y = glow_y - 2
+		elif str(t["side"]) == "north":
+			# sconce on the top edge of a south-facing wall (cafeteria south wall)
+			# or on the top edge of a north-room's south wall — flame rises into the room
+			glow_y = float(t["y"]) * TILE + 2 - cam_y
+			flame_y = glow_y - 4
+		var glow_x := twow + 4
+		draw_circle(Vector2(glow_x, glow_y), 46 + flicker, Color(0.85, 0.35, 0.10, 0.19))
+		draw_circle(Vector2(glow_x, glow_y), 21 + flicker * 0.5, Color(0.95, 0.45, 0.12, 0.28))
+		if not _flame_frames.is_empty():
+			var fi := int(time * 10.0 + i * 1.7) % _flame_frames.size()
+			if fi >= 0 and fi < _flame_frames.size():
+				draw_texture_rect(_flame_frames[fi], Rect2(twow - 2, flame_y - 12, 14, 18), false)
+
+func _speckle_floors(cam_x: float, cam_y: float, ty0: int, ty1: int, tx0: int, tx1: int) -> void:
+	for ty in range(ty0, ty1 + 1):
+		for tx in range(tx0, tx1 + 1):
+			if map[ty][tx] == "#":
 				continue
-			var px: float = float(tx * TILE) - cam_x
-			if px < -TILE or px > VIEW_W:
-				continue
-			var py := ty * TILE
+			var px := float(tx * TILE) - cam_x
+			var py := float(ty * TILE) - cam_y
 			var seed := tx * 131 + ty * 17
-			for i in 4:
+			for i in 3:
 				var hx := _hash(seed + i, 1) % 13
 				var hy := _hash(seed + i, 2) % 13
 				var dark := _hash(seed + i, 3) % 2 == 0
 				var col: Color
-				if ty == 0:
-					col = Color(0.10, 0.06, 0.04, 0.55) if dark else Color(0.32, 0.23, 0.12, 0.40)
-				elif ty == H - 1:
-					col = Color(0.05, 0.03, 0.02, 0.60) if dark else Color(0.30, 0.22, 0.12, 0.40)
+				if dark:
+					col = Color(0.06, 0.04, 0.02, 0.55)
 				else:
-					col = Color(0.08, 0.05, 0.03, 0.55) if dark else Color(0.33, 0.24, 0.13, 0.42)
+					col = Color(0.30, 0.22, 0.12, 0.35)
 				draw_rect(Rect2(px + 1.5 + float(hx), py + 1.5 + float(hy), 2.0, 1.0), col)
 
 func _draw_bubble(nx: float, ny: float, name: String, text: String) -> void:
 	var bw := 276.0
-	var bh := 42.0
+	var bh := 40.0
 	var bx := float(clamp(nx - bw / 2.0, 4.0, VIEW_W - bw - 4.0))
-	var by := float(clamp(ny - 66.0, 4.0, VIEW_H - bh - 4.0))
+	var by := float(clamp(ny - 28.0 - bh - 10.0, 4.0, VIEW_H - bh - 4.0))
 	draw_rect(Rect2(bx, by, bw, bh), Color("#100b07"))
 	draw_rect(Rect2(bx, by, bw, 1), Color("#c99a44"))
 	draw_rect(Rect2(bx, by + bh - 1, bw, 1), Color("#c99a44"))
 	draw_rect(Rect2(bx, by, 1, bh), Color("#c99a44"))
 	draw_rect(Rect2(bx + bw - 1, by, 1, bh), Color("#c99a44"))
 	draw_centered(name, bx + bw / 2.0, by + 11, 6, Color("#b8935a"))
-	draw_centered(text, bx + bw / 2.0, by + 29, 7, Color("#dcc394"))
+	draw_centered(text, bx + bw / 2.0, by + 27, 7, Color("#dcc394"))
 	var tail_x := float(clamp(nx, bx + 16.0, bx + bw - 16.0))
 	draw_rect(Rect2(tail_x - 2, by + bh, 4, 4), Color("#100b07"))
 	draw_rect(Rect2(tail_x - 2, by + bh, 4, 1), Color("#c99a44"))
+
+func fill_ellipse(cx: float, cy: float, rx: float, ry: float, col: Color) -> void:
+	for dy in range(-int(ry), int(ry) + 1):
+		var w := int(rx * sqrt(max(0.0, 1.0 - float(dy * dy) / (ry * ry))))
+		draw_rect(Rect2(float(cx) - w, float(cy) + dy, w * 2, 1), col)
 
 func draw_centered(text: String, x: float, baseline_y: float, size: int, color: Color) -> void:
 	var w := ThemeDB.fallback_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
@@ -433,9 +684,3 @@ func draw_centered(text: String, x: float, baseline_y: float, size: int, color: 
 
 func draw_left(text: String, x: float, baseline_y: float, size: int, color: Color) -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(x, baseline_y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
-
-func _just_key(code: int) -> bool:
-	var cur := Input.is_physical_key_pressed(code)
-	var fresh: bool = cur and not bool(_prev_keys.get(code, false))
-	_prev_keys[code] = cur
-	return fresh

@@ -4,8 +4,8 @@ const TEX_IDLE = preload("res://assets/sprites/sprites/kid_idle.png")
 const TEX_WALK_A = preload("res://assets/sprites/sprites/kid_walk_a.png")
 const TEX_WALK_B = preload("res://assets/sprites/sprites/kid_walk_b.png")
 
-const SPRITE_W := 11
-const SPRITE_H := 13
+const SPRITE_W := 20
+const SPRITE_H := 28
 
 static var _filters_set := false
 static var _flipped: Dictionary = {}
