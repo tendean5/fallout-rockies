@@ -1,0 +1,24 @@
+; [application]
+; Fallout Rockies — an original Fallout-inspired Colorado wasteland overworld.
+
+[application]
+config/name="Fallout Rockies"
+config/description="A Colorado-specific, Fallout-inspired overworld — roguelike die-and-return."
+config/icon=""
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray()
+
+[autoload]
+Game="*res://scripts/game.gd"
+
+[display]
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+window/stretch/scale="min"
+window/size/viewport_width=320
+window/size/viewport_height=176
+window/size/resizable=true
+window/size/maximize=false
+
+[rendering]
+antialiasing/edge/enable=false
