@@ -266,8 +266,8 @@ func _draw() -> void:
 func _draw_kid() -> void:
 	var bob := int(sin(time * 2.0) * 1.0)
 	var lunge_x := int(_kid_lunge * 22.0)
-	draw_rect(Rect2(26, 88, 18, 3), Color(0, 0, 0, 0.35))
-	Kid.draw(self, 24 + lunge_x, 62 + bob, 1, bob, -1)
+	draw_rect(Rect2(23, 88, 21, 3), Color(0, 0, 0, 0.35))
+	Kid.draw(self, 20 + lunge_x, 48 + bob, 1, bob, -1, 1.5)
 
 func _draw_kid_hp() -> void:
 	var frac: float = float(kid["current_hp"]) / max(1.0, float(kid["max_hp"]))

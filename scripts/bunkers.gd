@@ -476,7 +476,7 @@ func _draw() -> void:
 		fill_ellipse(px, py + 1, 14, 3, Color(0, 0, 0, 0.55))
 	var kid_px := kid.x - cam_x
 	var kid_py := kid.y - cam_y
-	fill_ellipse(kid_px + kid.w / 2.0, kid_py + kid.h + 1, 14, 3, Color(0, 0, 0, 0.55))
+	fill_ellipse(kid_px + kid.w / 2.0, kid_py + kid.h - 2, 11, 2, Color(0, 0, 0, 0.55))
 
 	for n in _npcs:
 		var d: Vector2 = n["feet"]

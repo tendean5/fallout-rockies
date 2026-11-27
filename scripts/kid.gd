@@ -39,9 +39,12 @@ static func _pick(step: int) -> Texture2D:
 		return TEX_WALK_B
 	return TEX_IDLE
 
-static func draw(canvas: Node2D, x: float, y: float, face: int, bob := 0, step := -1) -> void:
+static func draw(canvas: Node2D, x: float, y: float, face: int, bob := 0, step := -1, scale := 1.0) -> void:
 	_ensure_defaults()
 	var tex := _pick(step)
 	if face < 0:
 		tex = _flip_tex(tex)
-	canvas.draw_texture(tex, Vector2(x, y + bob))
+	if scale == 1.0:
+		canvas.draw_texture(tex, Vector2(x, y + bob))
+	else:
+		canvas.draw_texture_rect(tex, Rect2(x, y + bob, float(SPRITE_W) * scale, float(SPRITE_H) * scale), false, Color.WHITE)
