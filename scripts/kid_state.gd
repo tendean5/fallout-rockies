@@ -6,3 +6,4 @@ var w := 20.0
 var h := 28.0
 var vx := 0.0
 var face := 1
+var facing := "front"

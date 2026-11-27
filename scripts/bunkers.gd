@@ -125,6 +125,7 @@ func _ready() -> void:
 	kid.y = 11 * TILE
 	kid.w = 20
 	kid.h = 28
+	kid.facing = "front"
 	kid.face = 1
 	fade = 1.0
 	_cam = _target_cam()
@@ -166,7 +167,16 @@ func debug_state() -> String:
 	for i in _npcs.size():
 		var n: Dictionary = _npcs[i]
 		var d: Vector2 = n["feet"]
-		out += " | npc%d %s d=(%.0f,%.0f)" % [i, n["kind"], d.x, d.y]
+		var dx: float = (kid.x + kid.w / 2.0) - d.x
+		var dy: float = (kid.y + kid.h / 2.0) - (d.y - 14.0)
+		var facing := "front"
+		var face := 1
+		if abs(dy) > abs(dx) * 1.4:
+			facing = "back" if dy < 0.0 else "front"
+		else:
+			facing = "side"
+			face = 1 if dx > 0.0 else -1
+		out += " | npc%d %s d=(%.0f,%.0f) facing=%s/%d" % [i, n["kind"], d.x, d.y, facing, face]
 	return out
 
 func debug_scene_name() -> String:
@@ -253,7 +263,13 @@ func _physics_process(delta: float) -> void:
 			_talk_index = near
 			_talk_line = 0
 			var d: Vector2 = _npcs[near]["feet"]
-			kid.face = 1 if d.x > kid.x + kid.w / 2.0 else -1
+			var dx: float = d.x - (kid.x + kid.w / 2.0)
+			var dy: float = d.y - (kid.y + kid.h / 2.0)
+			if abs(dy) > abs(dx) * 1.4:
+				kid.facing = "back" if dy < 0.0 else "front"
+			else:
+				kid.facing = "side"
+				kid.face = 1 if dx > 0.0 else -1
 			Audio.play_sfx("dialogue_blip", 0.6)
 	else:
 		if _talk_index != -1:
@@ -284,12 +300,18 @@ func _physics_process(delta: float) -> void:
 		var vy := 0.0
 		if left:
 			vx = -WALK
+			kid.facing = "side"
 			kid.face = -1
 		if right:
 			vx = WALK
+			kid.facing = "side"
 			kid.face = 1
-		if up: vy = -WALK
-		if down: vy = WALK
+		if up:
+			vy = -WALK
+			kid.facing = "back"
+		if down:
+			vy = WALK
+			kid.facing = "front"
 
 		_moving = (vx != 0.0 or vy != 0.0)
 		if _moving:
@@ -486,15 +508,24 @@ func _draw() -> void:
 			continue
 		var sway := int(round(sin(time * 2.0 + d.x * 0.13)))
 		var kx := kid.x + kid.w / 2.0
-		var npc_face := 1 if kx > d.x else -1
-		NPC.draw(self, px - 10.0, py - 28.0, npc_face, str(n["kind"]), sway)
+		var ky := kid.y + kid.h / 2.0
+		var dx: float = kx - d.x
+		var dy: float = ky - (d.y - 14.0)
+		var npc_facing := "front"
+		var npc_face := 1
+		if abs(dy) > abs(dx) * 1.4:
+			npc_facing = "back" if dy < 0.0 else "front"
+		else:
+			npc_facing = "side"
+			npc_face = 1 if dx > 0.0 else -1
+		NPC.draw(self, px - 10.0, py - 28.0, npc_facing, npc_face, str(n["kind"]), sway)
 
 	var bob := 0
 	var step := -1
 	if _moving:
 		bob = int(round(sin(_walk_phase) * 1.0))
 		step = int(_walk_phase / PI) % 2
-	Kid.draw(self, kid_px, kid_py, kid.face, bob, step)
+	Kid.draw(self, kid_px, kid_py, kid.facing, kid.face, bob, step)
 
 	# memory band — only when no NPC is talking
 	if _talk_index < 0 and not surface:

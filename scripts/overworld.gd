@@ -122,12 +122,18 @@ func _physics_process(delta: float) -> void:
 	var vy := 0.0
 	if left:
 		vx = -WALK
+		kid.facing = "side"
 		kid.face = -1
 	if right:
 		vx = WALK
+		kid.facing = "side"
 		kid.face = 1
-	if up: vy = -WALK
-	if down: vy = WALK
+	if up:
+		vy = -WALK
+		kid.facing = "back"
+	if down:
+		vy = WALK
+		kid.facing = "front"
 	kid.vx = vx * TILE
 
 	_moving = (vx != 0.0 or vy != 0.0)
@@ -344,7 +350,7 @@ func _draw() -> void:
 		bob = int(round(sin(_walk_phase) * 1.0))
 		step = int(_walk_phase / PI) % 2
 	draw_rect(Rect2(kid.x - cam_x + 4, kid.y - cam_y + 25, 12, 2), Color(0, 0, 0, 0.35))
-	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.face, bob, step)
+	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.facing, kid.face, bob, step)
 
 	# HUD bar
 	draw_rect(Rect2(0, 0, HUD_W, 14), Color(0.039, 0.031, 0.02, 0.82))

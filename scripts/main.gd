@@ -10,6 +10,7 @@ var _capture_time := 0.6
 var _walk := false
 var _talk := false
 var _advance_timer := 0.0
+var _move_dir := ""
 
 func _ready() -> void:
 	holder = Node2D.new()
@@ -19,27 +20,38 @@ func _ready() -> void:
 
 	var args := OS.get_cmdline_user_args()
 	var start_scene := "title"
+	var shot_region := "Denver Ruins"
 	for i in args.size():
 		if args[i] == "--shot" and i + 1 < args.size():
 			_shot_target = args[i + 1]
 		elif args[i].begins_with("--start="):
 			start_scene = args[i].substr(8)
 		elif args[i] == "--walk":
-			_walk = true
+			_move_dir = "right"
+		elif args[i].begins_with("--move="):
+			_move_dir = args[i].substr(7)
 		elif args[i] == "--talk":
 			_talk = true
 		elif args[i].begins_with("--time="):
 			_capture_time = max(0.1, float(args[i].substr(7)))
+		elif args[i].begins_with("--region="):
+			shot_region = args[i].substr(9)
 	if start_scene == "battle":
 		Game.kid = Game.kid if Game.kid != null and typeof(Game.kid) == TYPE_DICTIONARY and Game.kid.has("current_hp") else BattleData.starting_kid()
-		Game.battle_context = {"region": "Denver Ruins"}
+		Game.battle_context = {"region": shot_region}
 	Game.scene_change_to(start_scene)
 
 func _process(delta: float) -> void:
 	if _shot_target.is_empty():
 		return
-	if _walk:
+	if _move_dir == "right":
 		Game.virtual_right = true
+	elif _move_dir == "left":
+		Game.virtual_left = true
+	elif _move_dir == "up":
+		Game.virtual_up = true
+	elif _move_dir == "down":
+		Game.virtual_down = true
 	if _talk:
 		_advance_timer += delta
 		if _advance_timer >= 0.4:
@@ -58,6 +70,9 @@ func _process(delta: float) -> void:
 		if cur != null and cur.has_method("debug_state"):
 			print("STATE: " + cur.debug_state())
 		Game.virtual_right = false
+		Game.virtual_left = false
+		Game.virtual_up = false
+		Game.virtual_down = false
 		get_tree().quit()
 
 func _analyze(img: Image) -> void:
