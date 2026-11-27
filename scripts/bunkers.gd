@@ -117,12 +117,132 @@ func _ensure_furn_solid() -> void:
 				for fx in range(int(f["x"]), int(f["x"]) + int(f["w"])):
 					_furn_solid[str(fx) + "," + str(fy)] = true
 
+func _make_npc(feet: Vector2, kind: String, name: String, lines: Array, room_x0: float, room_y0: float, room_x1: float, room_y1: float) -> Dictionary:
+	var w := 20.0
+	var h := 28.0
+	return {
+		"kind": kind, "name": name, "lines": lines,
+		"w": w, "h": h,
+		"x": feet.x - w / 2.0, "y": feet.y - h,
+		"facing": "front", "face": 1,
+		"state": "idle",
+		"timer": randf_range(0.5, 3.5),
+		"phase": randf_range(0.0, 6.0),
+		"stuck": 0.0,
+		"target_x": feet.x, "target_y": feet.y,
+		"room_x0": room_x0, "room_y0": room_y0,
+		"room_x1": room_x1, "room_y1": room_y1,
+	}
+
+func _npc_feet(n: Dictionary) -> Vector2:
+	return Vector2(float(n["x"]) + float(n["w"]) / 2.0, float(n["y"]) + float(n["h"]))
+
+func _npc_blocked_by_other(n: Dictionary) -> bool:
+	var f := _npc_feet(n)
+	for other in _npcs:
+		if other == n: continue
+		var of := _npc_feet(other)
+		var dx: float = of.x - f.x
+		var dy: float = of.y - f.y
+		if sqrt(dx * dx + dy * dy) < 15.0:
+			return true
+	return false
+
+func _pick_npc_target(n: Dictionary) -> void:
+	var fx: float = float(n["x"]) + float(n["w"]) / 2.0
+	var fy: float = float(n["y"]) + float(n["h"])
+	for attempt in 8:
+		var tx: float = randf_range(float(n["room_x0"]), float(n["room_x1"]))
+		var ty: float = randf_range(float(n["room_y0"]), float(n["room_y1"]))
+		var d: float = sqrt((tx - fx) * (tx - fx) + (ty - fy) * (ty - fy))
+		if d > 14.0:
+			n["target_x"] = tx
+			n["target_y"] = ty
+			n["state"] = "walk"
+			return
+	# fallback — just idle
+	n["state"] = "idle"
+	n["timer"] = randf_range(1.0, 3.0)
+
+func _update_npc(n: Dictionary, delta: float) -> void:
+	if _talk_index >= 0 and _npcs[_talk_index] == n:
+		# frozen mid-conversation, but gets to face the kid (drawn as not-walk)
+		n["state"] = "idle"
+		return
+	var state: String = str(n["state"])
+	if state == "idle":
+		n["timer"] = float(n["timer"]) - delta
+		if float(n["timer"]) <= 0.0:
+			if _npc_blocked_by_other(n):
+				n["timer"] = randf_range(0.5, 1.5)
+				return
+			_pick_npc_target(n)
+			if str(n["state"]) == "walk":
+				n["stuck"] = 0.0
+		return
+	# state == walk — notice the kid up close and pause to face him
+	var kx: float = kid.x + kid.w / 2.0
+	var ky: float = kid.y + kid.h / 2.0
+	var kdx: float = kx - (float(n["x"]) + float(n["w"]) / 2.0)
+	var kdy: float = ky - (float(n["y"]) + float(n["h"]) - 14.0)
+	if sqrt(kdx * kdx + kdy * kdy) < 28.0:
+		n["state"] = "idle"
+		n["timer"] = randf_range(1.0, 2.5)
+		n["stuck"] = 0.0
+		return
+	var feet_x: float = float(n["x"]) + float(n["w"]) / 2.0
+	var feet_y: float = float(n["y"]) + float(n["h"])
+	var tx: float = float(n["target_x"])
+	var ty: float = float(n["target_y"])
+	var dx: float = tx - feet_x
+	var dy: float = ty - feet_y
+	var dist: float = sqrt(dx * dx + dy * dy)
+	if dist < 3.5:
+		n["state"] = "idle"
+		n["timer"] = randf_range(1.0, 4.5)
+		return
+	var spd: float = WALK * TILE * 0.88 * delta
+	var step: float = min(spd, dist)
+	var vx: float = dx / dist if dist > 0.001 else 0.0
+	var vy: float = dy / dist if dist > 0.001 else 0.0
+	var new_x: float = float(n["x"]) + vx * step
+	var new_y: float = float(n["y"]) + vy * step
+	var corrected := _collide_pos(new_x, new_y, float(n["w"]), float(n["h"]))
+	var new_feet_x: float = corrected.x + float(n["w"]) / 2.0
+	var new_feet_y: float = corrected.y + float(n["h"])
+	var after: float = sqrt((tx - new_feet_x) * (tx - new_feet_x) + (ty - new_feet_y) * (ty - new_feet_y))
+	n["x"] = corrected.x
+	n["y"] = corrected.y
+	# walk phase / facing toward target
+	n["phase"] = float(n["phase"]) + delta * 9.0
+	if abs(vx) > abs(vy):
+		n["facing"] = "side"
+		n["face"] = 1 if vx > 0.0 else -1
+	else:
+		n["facing"] = "back" if vy < 0.0 else "front"
+	# stuck if we made no real progress
+	if after >= dist * 0.98:
+		n["stuck"] = float(n["stuck"]) + delta
+		if float(n["stuck"]) > 0.5:
+			n["stuck"] = 0.0
+			n["state"] = "idle"
+			n["timer"] = randf_range(1.0, 3.5)
+	else:
+		n["stuck"] = 0.0
+
 func _ready() -> void:
 	self.scale = Vector2(ZOOM, ZOOM)
 	_ensure_textures()
 	_ensure_furn_solid()
 	kid.x = 2 * TILE
 	kid.y = 11 * TILE
+	# debug-only: place the kid via --kidpos=x,y (world coords, kid is 20x28)
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--kidpos="):
+			var parts := arg.substr(9).split(",")
+			if parts.size() == 2:
+				kid.x = clamp(float(parts[0]), 0.0, float(W * TILE - 20))
+				kid.y = clamp(float(parts[1]), 0.0, float(H * TILE - 28))
 	kid.w = 20
 	kid.h = 28
 	kid.facing = "front"
@@ -131,27 +251,27 @@ func _ready() -> void:
 	_cam = _target_cam()
 	_step_pitch = 0.0
 	_npcs = [
-		{"feet": Vector2(9.5 * TILE, 12 * TILE), "kind": "kid", "name": "Perry", "lines": [
+		_make_npc(Vector2(9.5 * TILE, 12 * TILE), "kid", "Perry", [
 			"You still got the locket?",
 			"Our secret. Never tell on us!",
 			"...I need to study for my lines.",
-		]},
-		{"feet": Vector2(8 * TILE, 5.5 * TILE), "kind": "mother", "name": "Mumma", "lines": [
+		], 3 * TILE, 12.5 * TILE, 28 * TILE, 25.5 * TILE),
+		_make_npc(Vector2(8 * TILE, 5.5 * TILE), "mother", "Mumma", [
 			"You're supposed to stay home.",
 			"The locket is yours. Bring it back.",
 			"Don't be like — oh my. You're not a kid.",
-		]},
-		{"feet": Vector2(17 * TILE, 5.5 * TILE), "kind": "father", "name": "Pap", "lines": [
+		], 2.5 * TILE, 2.5 * TILE, 19.5 * TILE, 8 * TILE),
+		_make_npc(Vector2(17 * TILE, 5.5 * TILE), "father", "Pap", [
 			"The Enclave lives in the dark. By night.",
 			"Don't come looking for it in the bunkers.",
 			"Wherever you go, remember the path home.",
-		]},
-		{"feet": Vector2(39 * TILE, 15.8 * TILE), "kind": "guard", "name": "Enclave guard", "lines": [
+		], 11.5 * TILE, 2.5 * TILE, 20.5 * TILE, 8 * TILE),
+		_make_npc(Vector2(37.5 * TILE, 15.5 * TILE), "guard", "Enclave guard", [
 			"Who are you?",
 			"...you came back for something?",
 			"The last thing that crosses before dawn...",
 			"Leave the way you came. Leave now.",
-		]},
+		], 32.5 * TILE, 12.5 * TILE, 38.5 * TILE, 23.5 * TILE),
 	]
 	Audio.start_loop("ambience")
 	Audio.start_loop("torch_crackle")
@@ -166,17 +286,22 @@ func debug_state() -> String:
 	var out := "kid.x=%.1f kid.y=%.1f cam=(%.1f,%.1f) talk=%d done=%s | room=%s" % [kid.x, kid.y, _cam.x, _cam.y, _talk_index, str(_done_npcs), _room]
 	for i in _npcs.size():
 		var n: Dictionary = _npcs[i]
-		var d: Vector2 = n["feet"]
+		var d := _npc_feet(n)
 		var dx: float = (kid.x + kid.w / 2.0) - d.x
 		var dy: float = (kid.y + kid.h / 2.0) - (d.y - 14.0)
 		var facing := "front"
 		var face := 1
-		if abs(dy) > abs(dx) * 1.4:
-			facing = "back" if dy < 0.0 else "front"
-		else:
-			facing = "side"
-			face = 1 if dx > 0.0 else -1
-		out += " | npc%d %s d=(%.0f,%.0f) facing=%s/%d" % [i, n["kind"], d.x, d.y, facing, face]
+		var dist: float = sqrt(dx * dx + dy * dy)
+		if str(n["state"]) == "walk":
+			facing = str(n["facing"])
+			face = int(n["face"])
+		elif dist < 34.0:
+			if abs(dy) > abs(dx) * 1.4:
+				facing = "back" if dy < 0.0 else "front"
+			else:
+				facing = "side"
+				face = 1 if dx > 0.0 else -1
+		out += " | npc%d %s d=(%.0f,%.0f) [%s] facing=%s/%d t=(%.0f,%.0f)" % [i, n["kind"], d.x, d.y, str(n["state"]), facing, face, float(n["target_x"]), float(n["target_y"])]
 	return out
 
 func debug_scene_name() -> String:
@@ -234,7 +359,7 @@ func _near_npc_index() -> int:
 	for i in _npcs.size():
 		if i in _done_npcs:
 			continue
-		var d: Vector2 = _npcs[i]["feet"]
+		var d := _npc_feet(_npcs[i])
 		var dist := Vector2(kx, ky).distance_to(Vector2(d.x, d.y - 14))
 		if dist < 26.0:
 			return i
@@ -262,7 +387,7 @@ func _physics_process(delta: float) -> void:
 		if _talk_index != near:
 			_talk_index = near
 			_talk_line = 0
-			var d: Vector2 = _npcs[near]["feet"]
+			var d := _npc_feet(_npcs[near])
 			var dx: float = d.x - (kid.x + kid.w / 2.0)
 			var dy: float = d.y - (kid.y + kid.h / 2.0)
 			if abs(dy) > abs(dx) * 1.4:
@@ -329,6 +454,10 @@ func _physics_process(delta: float) -> void:
 	else:
 		_moving = false
 
+	# NPCs wander their rooms
+	for n in _npcs:
+		_update_npc(n, delta)
+
 	# room detection + surface trigger
 	var kx := kid.x + kid.w / 2.0
 	var ky := kid.y + kid.h / 2.0
@@ -361,54 +490,53 @@ func _target_cam() -> Vector2:
 	return Vector2(cam_x, cam_y)
 
 func _resolve_collisions() -> void:
-	var resolved := _resolve_x()
-	if resolved:
-		_resolve_y()
+	var p := _collide_pos(kid.x, kid.y, kid.w, kid.h)
+	kid.x = p.x
+	kid.y = p.y
 
-func _resolve_x() -> bool:
-	var k = kid
-	var x0 := int(k.x / TILE)
-	var x1 := int((k.x + k.w) / TILE)
-	var y0 := int(k.y / TILE)
-	var y1 := int((k.y + k.h) / TILE)
+func _collide_pos(px: float, py: float, pw: float, ph: float) -> Vector2:
+	var x := px
+	var y := py
 	var hit := false
+	var x0 := int(x / TILE)
+	var x1 := int((x + pw) / TILE)
+	var y0 := int(y / TILE)
+	var y1 := int((y + ph) / TILE)
 	for ty in range(y0, y1 + 1):
 		for tx in range(x0, x1 + 1):
 			if not _is_solid(tx, ty):
 				continue
 			var left_edge := tx * TILE
 			var right_edge := (tx + 1) * TILE
-			var mid_x: float = k.x + k.w / 2.0
+			var mid_x: float = x + pw / 2.0
 			if mid_x < (left_edge + right_edge) / 2.0:
-				k.x = left_edge - k.w
+				x = left_edge - pw
 			else:
-				k.x = right_edge
+				x = right_edge
 			hit = true
-	return hit
-
-func _resolve_y() -> void:
-	var k = kid
-	var x0 := int(k.x / TILE)
-	var x1 := int((k.x + k.w) / TILE)
-	var y0 := int(k.y / TILE)
-	var y1 := int((k.y + k.h) / TILE)
-	for ty in range(y0, y1 + 1):
-		for tx in range(x0, x1 + 1):
-			if not _is_solid(tx, ty):
-				continue
-			var top_edge := ty * TILE
-			var bottom_edge := (ty + 1) * TILE
-			var mid_y: float = k.y + k.h / 2.0
-			if mid_y < (top_edge + bottom_edge) / 2.0:
-				k.y = top_edge - k.h
-			else:
-				k.y = bottom_edge
+	if hit:
+		x0 = int(x / TILE)
+		x1 = int((x + pw) / TILE)
+		y0 = int(y / TILE)
+		y1 = int((y + ph) / TILE)
+		for ty in range(y0, y1 + 1):
+			for tx in range(x0, x1 + 1):
+				if not _is_solid(tx, ty):
+					continue
+				var top_edge := ty * TILE
+				var bottom_edge := (ty + 1) * TILE
+				var mid_y: float = y + ph / 2.0
+				if mid_y < (top_edge + bottom_edge) / 2.0:
+					y = top_edge - ph
+				else:
+					y = bottom_edge
+	return Vector2(x, y)
 
 func _resolve_npc() -> void:
 	var kx := kid.x + kid.w / 2.0
 	var ky := kid.y + kid.h / 2.0
 	for n in _npcs:
-		var d: Vector2 = n["feet"]
+		var d := _npc_feet(n)
 		var dx: float = kx - d.x
 		var dy: float = ky - (d.y - 14)
 		var dist := sqrt(dx * dx + dy * dy)
@@ -490,7 +618,7 @@ func _draw() -> void:
 
 	# shadows + NPCs + kid
 	for n in _npcs:
-		var d: Vector2 = n["feet"]
+		var d := _npc_feet(n)
 		var px: float = d.x - cam_x
 		var py: float = d.y - cam_y
 		if px < -40 or px > VIEW_W + 40:
@@ -501,24 +629,31 @@ func _draw() -> void:
 	fill_ellipse(kid_px + kid.w / 2.0, kid_py + kid.h - 2, 11, 2, Color(0, 0, 0, 0.55))
 
 	for n in _npcs:
-		var d: Vector2 = n["feet"]
+		var d := _npc_feet(n)
 		var px: float = d.x - cam_x
 		var py: float = d.y - cam_y
 		if px < -40 or px > VIEW_W + 40:
 			continue
-		var sway := int(round(sin(time * 2.0 + d.x * 0.13)))
 		var kx := kid.x + kid.w / 2.0
 		var ky := kid.y + kid.h / 2.0
 		var dx: float = kx - d.x
 		var dy: float = ky - (d.y - 14.0)
+		var dist: float = sqrt(dx * dx + dy * dy)
 		var npc_facing := "front"
 		var npc_face := 1
-		if abs(dy) > abs(dx) * 1.4:
-			npc_facing = "back" if dy < 0.0 else "front"
-		else:
-			npc_facing = "side"
-			npc_face = 1 if dx > 0.0 else -1
-		NPC.draw(self, px - 10.0, py - 28.0, npc_facing, npc_face, str(n["kind"]), sway)
+		var bob := 0
+		if str(n["state"]) == "walk":
+			npc_facing = str(n["facing"])
+			npc_face = int(n["face"])
+			bob = int(round(sin(float(n["phase"])) * 1.5))
+		elif dist < 34.0:
+			if abs(dy) > abs(dx) * 1.4:
+				npc_facing = "back" if dy < 0.0 else "front"
+			else:
+				npc_facing = "side"
+				npc_face = 1 if dx > 0.0 else -1
+			bob = int(round(sin(time * 2.0 + d.x * 0.13)))
+		NPC.draw(self, px - 10.0, py - 28.0, npc_facing, npc_face, str(n["kind"]), bob)
 
 	var bob := 0
 	var step := -1
@@ -536,7 +671,7 @@ func _draw() -> void:
 	# speech bubble above the speaking NPC
 	if _talk_index >= 0:
 		var n: Dictionary = _npcs[_talk_index]
-		var d: Vector2 = n["feet"]
+		var d := _npc_feet(n)
 		_draw_bubble(d.x - cam_x, d.y - cam_y, str(n["name"]), str(n["lines"][_talk_line]))
 
 	# age HUD — top left
