@@ -71,6 +71,10 @@ var _moving := false
 var _walk_phase := 0.0
 var _cam := Vector2(0, 0)
 var _step_pitch := 0.0
+var _walk_dist := 0.0
+var _blink_timer := 2.0
+var _blink_left := 0.0
+var _kid_blink := false
 var _room := "cafeteria"
 
 var _npcs: Array[Dictionary] = []
@@ -129,6 +133,8 @@ func _make_npc(feet: Vector2, kind: String, name: String, lines: Array, room_x0:
 		"timer": randf_range(0.5, 3.5),
 		"phase": randf_range(0.0, 6.0),
 		"stuck": 0.0,
+		"blink_timer": randf_range(1.5, 5.0),
+		"blink_left": 0.0,
 		"target_x": feet.x, "target_y": feet.y,
 		"room_x0": room_x0, "room_y0": room_y0,
 		"room_x1": room_x1, "room_y1": room_y1,
@@ -165,6 +171,13 @@ func _pick_npc_target(n: Dictionary) -> void:
 	n["timer"] = randf_range(1.0, 3.0)
 
 func _update_npc(n: Dictionary, delta: float) -> void:
+	# eye blink (periodic, ~130ms, randomized cadence)
+	n["blink_timer"] = float(n["blink_timer"]) - delta
+	if float(n["blink_timer"]) <= 0.0:
+		n["blink_left"] = 0.13
+		n["blink_timer"] = randf_range(2.2, 5.5)
+	if float(n["blink_left"]) > 0.0:
+		n["blink_left"] = float(n["blink_left"]) - delta
 	if _talk_index >= 0 and _npcs[_talk_index] == n:
 		# frozen mid-conversation, but gets to face the kid (drawn as not-walk)
 		n["state"] = "idle"
@@ -447,6 +460,8 @@ func _physics_process(delta: float) -> void:
 
 		kid.x += vx * TILE * delta
 		kid.y += vy * TILE * delta
+		if _moving:
+			_walk_dist += (abs(vx * TILE) + abs(vy * TILE)) * delta
 		_resolve_collisions()
 		_resolve_npc()
 		kid.x = clamp(kid.x, 0.0, float(W * TILE - kid.w))
@@ -457,6 +472,17 @@ func _physics_process(delta: float) -> void:
 	# NPCs wander their rooms
 	for n in _npcs:
 		_update_npc(n, delta)
+
+	# eye blink (periodic, ~130ms, randomized cadence)
+	_blink_timer -= delta
+	if _blink_timer <= 0.0:
+		_blink_left = 0.13
+		_blink_timer = randf_range(2.2, 5.5)
+	if _blink_left > 0.0:
+		_blink_left -= delta
+		_kid_blink = true
+	else:
+		_kid_blink = false
 
 	# room detection + surface trigger
 	var kx := kid.x + kid.w / 2.0
@@ -645,22 +671,22 @@ func _draw() -> void:
 		if str(n["state"]) == "walk":
 			npc_facing = str(n["facing"])
 			npc_face = int(n["face"])
-			bob = int(round(sin(float(n["phase"])) * 1.5))
+			bob = sin(float(n["phase"])) * 1.5
 		elif dist < 34.0:
 			if abs(dy) > abs(dx) * 1.4:
 				npc_facing = "back" if dy < 0.0 else "front"
 			else:
 				npc_facing = "side"
 				npc_face = 1 if dx > 0.0 else -1
-			bob = int(round(sin(time * 2.0 + d.x * 0.13)))
-		NPC.draw(self, px - 10.0, py - 28.0, npc_facing, npc_face, str(n["kind"]), bob)
+			bob = sin(time * 2.0 + d.x * 0.13) * 0.8
+		NPC.draw(self, px - 10.0, py - 28.0, npc_facing, npc_face, str(n["kind"]), bob, float(n["blink_left"]) > 0.0)
 
-	var bob := 0
+	var bob := 0.0
 	var step := -1
 	if _moving:
-		bob = int(round(sin(_walk_phase) * 1.0))
-		step = int(_walk_phase / PI) % 2
-	Kid.draw(self, kid_px, kid_py, kid.facing, kid.face, bob, step)
+		bob = sin(_walk_dist * 0.3927) * 1.0
+		step = int(_walk_dist / 8.0) % 2
+	Kid.draw(self, kid_px, kid_py, kid.facing, kid.face, bob, step, 1.0, _kid_blink)
 
 	# memory band — only when no NPC is talking
 	if _talk_index < 0 and not surface:

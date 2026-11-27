@@ -20,6 +20,8 @@ var _resolved_kid := false
 var _resolved_enemy := false
 var _escaped := false
 var _kid_lunge := 0.0
+var _blink_timer := 2.0
+var _blink_left := 0.0
 var _enemy_lunge := 0.0
 var _forced_hit := false
 var _pending_attack := false
@@ -79,6 +81,12 @@ func _just_key(code: int) -> bool:
 func _physics_process(delta: float) -> void:
 	time += delta
 	_kid_lunge = max(0.0, _kid_lunge - delta)
+	_blink_timer -= delta
+	if _blink_timer <= 0.0:
+		_blink_left = 0.13
+		_blink_timer = randf_range(2.0, 4.5)
+	if _blink_left > 0.0:
+		_blink_left -= delta
 	_enemy_lunge = max(0.0, _enemy_lunge - delta)
 	for i in range(popups.size() - 1, -1, -1):
 		popups[i]["ttl"] -= delta
@@ -264,10 +272,10 @@ func _draw() -> void:
 		draw_centered("back to the last safe tile...", VIEW_W / 2, 108, 7, Color("#c8a08a"))
 
 func _draw_kid() -> void:
-	var bob := int(sin(time * 2.0) * 1.0)
+	var bob := sin(time * 2.0) * 1.0
 	var lunge_x := int(_kid_lunge * 22.0)
 	draw_rect(Rect2(23, 88, 21, 3), Color(0, 0, 0, 0.35))
-	Kid.draw(self, 20 + lunge_x, 48 + bob, "side", 1, 0, -1, 1.5)
+	Kid.draw(self, 20 + lunge_x, 48 + bob, "side", 1, 0, -1, 1.5, float(_blink_left) > 0.0)
 
 func _draw_kid_hp() -> void:
 	var frac: float = float(kid["current_hp"]) / max(1.0, float(kid["max_hp"]))

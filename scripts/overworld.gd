@@ -33,6 +33,10 @@ var _cam := Vector2(0, 0)
 var _moving := false
 var _walk_phase := 0.0
 var _step_pitch := 0.0
+var _walk_dist := 0.0
+var _blink_timer := 2.0
+var _blink_left := 0.0
+var _kid_blink := false
 var _last_tile := Vector2i(-1, -1)
 var _encounter_cooldown := 0.0
 var _trigger_tiles: Dictionary = {}
@@ -103,6 +107,17 @@ func _physics_process(delta: float) -> void:
 			_reset_kid()
 		return
 
+	# eye blink (periodic, ~130ms, randomized cadence)
+	_blink_timer -= delta
+	if _blink_timer <= 0.0:
+		_blink_left = 0.13
+		_blink_timer = randf_range(2.2, 5.5)
+	if _blink_left > 0.0:
+		_blink_left -= delta
+		_kid_blink = true
+	else:
+		_kid_blink = false
+
 	# tap assist (one nudge per fresh tap)
 	if _just_key(KEY_LEFT) or _just_key(KEY_A):
 		kid.x -= 3.2
@@ -145,6 +160,8 @@ func _physics_process(delta: float) -> void:
 
 	kid.x += kid.vx * delta
 	kid.y += vy * TILE * delta
+	if _moving:
+		_walk_dist += (abs(kid.vx) + abs(vy * TILE)) * delta
 	_resolve_collisions()
 
 	kid.x = clamp(kid.x, 0.0, float(MAP_W * TILE - kid.w))
@@ -344,13 +361,13 @@ func _draw() -> void:
 			elif t == WorldMap.T_SNOW:
 				draw_rect(Rect2(px + 3, py + 9, 10, 3), Color("#e6ddce"))
 
-	var bob := 0
+	var bob := 0.0
 	var step := -1
 	if _moving:
-		bob = int(round(sin(_walk_phase) * 1.0))
-		step = int(_walk_phase / PI) % 2
+		bob = sin(_walk_dist * 0.3927) * 1.0
+		step = int(_walk_dist / 8.0) % 2
 	draw_rect(Rect2(kid.x - cam_x + 4, kid.y - cam_y + 25, 12, 2), Color(0, 0, 0, 0.35))
-	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.facing, kid.face, bob, step)
+	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.facing, kid.face, bob, step, 1.0, _kid_blink)
 
 	# HUD bar
 	draw_rect(Rect2(0, 0, HUD_W, 14), Color(0.039, 0.031, 0.02, 0.82))

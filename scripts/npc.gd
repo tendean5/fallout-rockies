@@ -1,5 +1,5 @@
 # NPC sprite drawing — pxl-generated PNGs (childhood cast: friend, mumma, pap, guard).
-# 4 directions: "front", "back", "side" (facing right; face == -1 mirrors).
+# 3 directions: "front", "back", "side" (facing right; face == -1 mirrors).
 const TEX_PERRY = preload("res://assets/sprites/sprites/perry.png")
 const TEX_PERRY_BACK = preload("res://assets/sprites/sprites/perry_back.png")
 const TEX_PERRY_SIDE = preload("res://assets/sprites/sprites/perry_side.png")
@@ -61,9 +61,26 @@ static func _tex(kind: String, facing: String) -> Texture2D:
 			return TEX_GUARD
 	return TEX_PERRY
 
-static func draw(canvas: Node2D, x: float, y: float, facing: String, face: int, kind: String, bob := 0) -> void:
+static func _blink_eyes(canvas: Node2D, x: float, y: float, kind: String, facing: String, face: int) -> void:
+	# guard wears a visor — no blink. Back view has no face — no blink.
+	if facing != "front" and facing != "side":
+		return
+	if kind == "guard":
+		return
+	var ink := Color("#2a1c10")
+	if facing == "front":
+		canvas.draw_rect(Rect2(x + 5.0, y + 8.0, 9.0, 1.0), ink)
+	elif facing == "side":
+		var ex := 10.5
+		if face < 0:
+			ex = SPRITE_W - ex - 4.0
+		canvas.draw_rect(Rect2(x + ex, y + 8.0, 4.0, 1.0), ink)
+
+static func draw(canvas: Node2D, x: float, y: float, facing: String, face: int, kind: String, bob := 0.0, blink := false) -> void:
 	_ensure_defaults()
 	var tex := _tex(kind, facing)
 	if facing == "side" and face < 0:
 		tex = _flip_tex(tex)
 	canvas.draw_texture(tex, Vector2(x, y + bob))
+	if blink:
+		_blink_eyes(canvas, x, y, kind, facing, face)

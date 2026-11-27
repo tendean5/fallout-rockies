@@ -55,12 +55,30 @@ static func _pick(facing: String, step: int) -> Texture2D:
 			if step == 1: return TEX_WALK_B
 			return TEX_IDLE
 
-static func draw(canvas: Node2D, x: float, y: float, facing: String = "front", face: int = 1, bob := 0, step := -1, scale := 1.0) -> void:
+# Eyes are at row 8 of the front/side art. Blinking draws a thin ink line across them.
+static func _blink_eyes(canvas: Node2D, x: float, y: float, facing: String, face: int, scale: float) -> void:
+	if facing != "front" and facing != "side":
+		return
+	var ink := Color("#241a12")
+	if facing == "front":
+		canvas.draw_rect(Rect2(x + 4.0 * scale, y + 8.0 * scale, 5.0 * scale, 1.0 * scale), ink)
+		canvas.draw_rect(Rect2(x + 11.0 * scale, y + 8.0 * scale, 5.0 * scale, 1.0 * scale), ink)
+	elif facing == "side":
+		var ex := 10.5
+		if face < 0:
+			ex = SPRITE_W - ex - 4.0
+		canvas.draw_rect(Rect2(x + ex * scale, y + 8.0 * scale, 4.0 * scale, 1.0 * scale), ink)
+
+static func draw(canvas: Node2D, x: float, y: float, facing: String = "front", face: int = 1, bob := 0.0, step := -1, scale := 1.0, blink := false) -> void:
 	_ensure_defaults()
 	var tex := _pick(facing, step)
 	if facing == "side" and face < 0:
 		tex = _flip_tex(tex)
 	if scale == 1.0:
 		canvas.draw_texture(tex, Vector2(x, y + bob))
+		if blink:
+			_blink_eyes(canvas, x, y, facing, face, 1.0)
 	else:
 		canvas.draw_texture_rect(tex, Rect2(x, y + bob, float(SPRITE_W) * scale, float(SPRITE_H) * scale), false, Color.WHITE)
+		if blink:
+			_blink_eyes(canvas, x, y, facing, face, scale)
