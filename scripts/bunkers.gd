@@ -218,9 +218,11 @@ func _update_npc(n: Dictionary, delta: float) -> void:
 	var step: float = min(spd, dist)
 	var vx: float = dx / dist if dist > 0.001 else 0.0
 	var vy: float = dy / dist if dist > 0.001 else 0.0
-	var new_x: float = float(n["x"]) + vx * step
-	var new_y: float = float(n["y"]) + vy * step
-	var corrected := _collide_pos(new_x, new_y, float(n["w"]), float(n["h"]))
+	var prev_x: float = float(n["x"])
+	var prev_y: float = float(n["y"])
+	var new_x: float = prev_x + vx * step
+	var new_y: float = prev_y + vy * step
+	var corrected := _npc_collide_pos(prev_x, prev_y, new_x, new_y, float(n["w"]), float(n["h"]))
 	var new_feet_x: float = corrected.x + float(n["w"]) / 2.0
 	var new_feet_y: float = corrected.y + float(n["h"])
 	var after: float = sqrt((tx - new_feet_x) * (tx - new_feet_x) + (ty - new_feet_y) * (ty - new_feet_y))
@@ -458,11 +460,14 @@ func _physics_process(delta: float) -> void:
 				_step_pitch = _walk_phase
 				Audio.play_sfx("walk_step", 0.35)
 
+		var prev_x := kid.x
+		var prev_y := kid.y
+
 		kid.x += vx * TILE * delta
 		kid.y += vy * TILE * delta
 		if _moving:
 			_walk_dist += (abs(vx * TILE) + abs(vy * TILE)) * delta
-		_resolve_collisions()
+		_resolve_collisions(prev_x, prev_y)
 		_resolve_npc()
 		kid.x = clamp(kid.x, 0.0, float(W * TILE - kid.w))
 		kid.y = clamp(kid.y, 0.0, float(H * TILE - kid.h))
@@ -515,15 +520,54 @@ func _target_cam() -> Vector2:
 	var cam_y: float = clamp(kid.y + kid.h / 2.0 - FL_H / 2.0, 0.0, float(H * TILE - FL_H))
 	return Vector2(cam_x, cam_y)
 
-func _resolve_collisions() -> void:
-	var p := _collide_pos(kid.x, kid.y, kid.w, kid.h)
-	kid.x = p.x
-	kid.y = p.y
+# Axis-separated push-out from solid tiles. Each axis resolves against the
+# kid's pre-movement position, so a kid pressed into a wall is pushed back to
+# where it was — never snapped across a tile.
+func _resolve_collisions(prev_x: float, prev_y: float) -> void:
+	_resolve_axis_x(prev_x)
+	_resolve_axis_y(prev_y)
 
-func _collide_pos(px: float, py: float, pw: float, ph: float) -> Vector2:
-	var x := px
-	var y := py
-	var hit := false
+func _resolve_axis_x(prev_x: float) -> void:
+	var k: KidState = kid
+	var x0 := int(k.x / TILE)
+	var x1 := int((k.x + k.w) / TILE)
+	var y0 := int(k.y / TILE)
+	var y1 := int((k.y + k.h) / TILE)
+	for ty in range(y0, y1 + 1):
+		for tx in range(x0, x1 + 1):
+			if not _is_solid(tx, ty):
+				continue
+			var left_edge := tx * TILE
+			var right_edge := (tx + 1) * TILE
+			var prev_left := prev_x
+			var prev_right := prev_x + k.w
+			if prev_right <= left_edge + 0.5:
+				k.x = left_edge - k.w
+			elif prev_left >= right_edge - 0.5:
+				k.x = right_edge
+
+func _resolve_axis_y(prev_y: float) -> void:
+	var k: KidState = kid
+	var x0 := int(k.x / TILE)
+	var x1 := int((k.x + k.w) / TILE)
+	var y0 := int(k.y / TILE)
+	var y1 := int((k.y + k.h) / TILE)
+	for ty in range(y0, y1 + 1):
+		for tx in range(x0, x1 + 1):
+			if not _is_solid(tx, ty):
+				continue
+			var top_edge := ty * TILE
+			var bottom_edge := (ty + 1) * TILE
+			var prev_top := prev_y
+			var prev_bottom := prev_y + k.h
+			if prev_bottom <= top_edge + 0.5:
+				k.y = top_edge - k.h
+			elif prev_top >= bottom_edge - 0.5:
+				k.y = bottom_edge
+
+func _npc_collide_pos(prev_x: float, prev_y: float, nx: float, ny: float, pw: float, ph: float) -> Vector2:
+	var x := nx
+	var y := ny
 	var x0 := int(x / TILE)
 	var x1 := int((x + pw) / TILE)
 	var y0 := int(y / TILE)
@@ -534,31 +578,40 @@ func _collide_pos(px: float, py: float, pw: float, ph: float) -> Vector2:
 				continue
 			var left_edge := tx * TILE
 			var right_edge := (tx + 1) * TILE
-			var mid_x: float = x + pw / 2.0
-			if mid_x < (left_edge + right_edge) / 2.0:
+			if prev_x + pw <= left_edge + 0.5:
 				x = left_edge - pw
-			else:
+			elif prev_x >= right_edge - 0.5:
 				x = right_edge
-			hit = true
-	if hit:
-		x0 = int(x / TILE)
-		x1 = int((x + pw) / TILE)
-		y0 = int(y / TILE)
-		y1 = int((y + ph) / TILE)
-		for ty in range(y0, y1 + 1):
-			for tx in range(x0, x1 + 1):
-				if not _is_solid(tx, ty):
-					continue
-				var top_edge := ty * TILE
-				var bottom_edge := (ty + 1) * TILE
-				var mid_y: float = y + ph / 2.0
-				if mid_y < (top_edge + bottom_edge) / 2.0:
-					y = top_edge - ph
-				else:
-					y = bottom_edge
+	x0 = int(x / TILE)
+	x1 = int((x + pw) / TILE)
+	y0 = int(y / TILE)
+	y1 = int((y + ph) / TILE)
+	for ty2 in range(y0, y1 + 1):
+		for tx2 in range(x0, x1 + 1):
+			if not _is_solid(tx2, ty2):
+				continue
+			var top_edge := ty2 * TILE
+			var bottom_edge := (ty2 + 1) * TILE
+			if prev_y + ph <= top_edge + 0.5:
+				y = top_edge - ph
+			elif prev_y >= bottom_edge - 0.5:
+				y = bottom_edge
 	return Vector2(x, y)
 
+func _box_solid(px: float, py: float, pw: float, ph: float) -> bool:
+	var x0 := int(px / TILE)
+	var x1 := int((px + pw) / TILE)
+	var y0 := int(py / TILE)
+	var y1 := int((py + ph) / TILE)
+	for ty in range(y0, y1 + 1):
+		for tx in range(x0, x1 + 1):
+			if _is_solid(tx, ty):
+				return true
+	return false
+
 func _resolve_npc() -> void:
+	var pre_x := kid.x
+	var pre_y := kid.y
 	var kx := kid.x + kid.w / 2.0
 	var ky := kid.y + kid.h / 2.0
 	for n in _npcs:
@@ -569,8 +622,13 @@ func _resolve_npc() -> void:
 		var min_dist := 16.0
 		if dist < min_dist and dist > 0.001:
 			var push := (min_dist - dist) / dist
-			kid.x += dx * push
-			kid.y += dy * push
+			var nx := kid.x + dx * push
+			var ny := kid.y + dy * push
+			# never push the kid into a solid tile — leave them in place
+			if _box_solid(nx, ny, kid.w, kid.h):
+				continue
+			kid.x = nx
+			kid.y = ny
 
 func _finish() -> void:
 	if _finished:

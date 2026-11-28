@@ -69,12 +69,13 @@ static func _blink_eyes(canvas: Node2D, x: float, y: float, kind: String, facing
 		return
 	var ink := Color("#2a1c10")
 	if facing == "front":
-		canvas.draw_rect(Rect2(x + 5.0, y + 8.0, 9.0, 1.0), ink)
+		canvas.draw_rect(Rect2(x + 5.0, y + 8.0, 2.0, 1.0), ink)
+		canvas.draw_rect(Rect2(x + 12.0, y + 8.0, 2.0, 1.0), ink)
 	elif facing == "side":
-		var ex := 10.5
+		var ex := 13.0
 		if face < 0:
-			ex = SPRITE_W - ex - 4.0
-		canvas.draw_rect(Rect2(x + ex, y + 8.0, 4.0, 1.0), ink)
+			ex = SPRITE_W - ex - 2.0
+		canvas.draw_rect(Rect2(x + ex, y + 8.0, 2.0, 1.0), ink)
 
 static func draw(canvas: Node2D, x: float, y: float, facing: String, face: int, kind: String, bob := 0.0, blink := false) -> void:
 	_ensure_defaults()

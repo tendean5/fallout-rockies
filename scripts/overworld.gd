@@ -118,6 +118,11 @@ func _physics_process(delta: float) -> void:
 	else:
 		_kid_blink = false
 
+	# remember where we were so collision resolution can push us out along the axis
+	# we came from, instead of snapping us across the tile.
+	var prev_x := kid.x
+	var prev_y := kid.y
+
 	# tap assist (one nudge per fresh tap)
 	if _just_key(KEY_LEFT) or _just_key(KEY_A):
 		kid.x -= 3.2
@@ -162,7 +167,7 @@ func _physics_process(delta: float) -> void:
 	kid.y += vy * TILE * delta
 	if _moving:
 		_walk_dist += (abs(kid.vx) + abs(vy * TILE)) * delta
-	_resolve_collisions()
+	_resolve_collisions(prev_x, prev_y)
 
 	kid.x = clamp(kid.x, 0.0, float(MAP_W * TILE - kid.w))
 	kid.y = clamp(kid.y, 0.0, float(MAP_H * TILE - kid.h))
@@ -265,34 +270,37 @@ func _tile_at_kid() -> int:
 	var cy := kid.y + kid.h / 2.0
 	return _tile_at(int(cx / TILE), int(cy / TILE))
 
-func _resolve_collisions() -> void:
-	var resolved := _resolve_x()
-	if resolved:
-		_resolve_y()
+# Axis-separated push-out. Each axis is resolved against the position the kid
+# was in before this frame's movement, so a kid nudged into a wall is pushed
+# back to where it was — it never teleports across a tile.
+func _resolve_collisions(prev_x: float, prev_y: float) -> void:
+	_resolve_axis_x(prev_x)
+	_resolve_axis_y(prev_y)
 
-func _resolve_x() -> bool:
-	var k = kid
+func _resolve_axis_x(prev_x: float) -> void:
+	var k: KidState = kid
 	var x0 := int(k.x / TILE)
 	var x1 := int((k.x + k.w) / TILE)
 	var y0 := int(k.y / TILE)
 	var y1 := int((k.y + k.h) / TILE)
-	var hit := false
 	for ty in range(y0, y1 + 1):
 		for tx in range(x0, x1 + 1):
 			if not _is_solid_tile(tx, ty):
 				continue
 			var left_edge := tx * TILE
 			var right_edge := (tx + 1) * TILE
-			var mid_x: float = k.x + k.w / 2.0
-			if mid_x < (left_edge + right_edge) / 2.0:
+			var prev_left := prev_x
+			var prev_right := prev_x + k.w
+			# Only push out if the kid actually entered the tile along the X axis
+			# (started fully on the near side). Vertical approach into a wall is
+			# left alone — the Y pass handles it — so corner slides stay clean.
+			if prev_right <= left_edge + 0.5:
 				k.x = left_edge - k.w
-			else:
+			elif prev_left >= right_edge - 0.5:
 				k.x = right_edge
-			hit = true
-	return hit
 
-func _resolve_y() -> void:
-	var k = kid
+func _resolve_axis_y(prev_y: float) -> void:
+	var k: KidState = kid
 	var x0 := int(k.x / TILE)
 	var x1 := int((k.x + k.w) / TILE)
 	var y0 := int(k.y / TILE)
@@ -303,10 +311,11 @@ func _resolve_y() -> void:
 				continue
 			var top_edge := ty * TILE
 			var bottom_edge := (ty + 1) * TILE
-			var mid_y: float = k.y + k.h / 2.0
-			if mid_y < (top_edge + bottom_edge) / 2.0:
+			var prev_top := prev_y
+			var prev_bottom := prev_y + k.h
+			if prev_bottom <= top_edge + 0.5:
 				k.y = top_edge - k.h
-			else:
+			elif prev_top >= bottom_edge - 0.5:
 				k.y = bottom_edge
 
 func _die() -> void:
@@ -366,8 +375,13 @@ func _draw() -> void:
 	if _moving:
 		bob = sin(_walk_dist * 0.3927) * 1.0
 		step = int(_walk_dist / 8.0) % 2
-	draw_rect(Rect2(kid.x - cam_x + 4, kid.y - cam_y + 25, 12, 2), Color(0, 0, 0, 0.35))
-	Kid.draw(self, kid.x - cam_x, kid.y - cam_y, kid.facing, kid.face, bob, step, 1.0, _kid_blink)
+	# Draw the kid ~1.35x its collision box so it reads against the world
+	# (same box — only the sprite gets bigger). Sprite is foot-anchored.
+	var s := 1.35
+	var ox := (20.0 * s - 20.0) * 0.5
+	var oy := 28.0 * s - 28.0
+	draw_rect(Rect2(kid.x - cam_x + 2, kid.y - cam_y + 26, 16, 2), Color(0, 0, 0, 0.35))
+	Kid.draw(self, kid.x - cam_x - ox, kid.y - cam_y - oy, kid.facing, kid.face, bob, step, s, _kid_blink)
 
 	# HUD bar
 	draw_rect(Rect2(0, 0, HUD_W, 14), Color(0.039, 0.031, 0.02, 0.82))
